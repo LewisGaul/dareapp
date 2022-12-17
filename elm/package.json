@@ -1,0 +1,23 @@
+{
+  "name": "dare_app",
+  "version": "1.0.0",
+  "description": "Dare game",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "entrance-ws": "^1.1.1",
+    "global": "^4.3.2",
+    "parcel": "^1.12.4",
+    "parcel-bundler": "^1.12.3"
+  },
+  "devDependencies": {
+    "cssnano": "^4.1.10",
+    "elm": "^0.19.1",
+    "elm-hot": "^1.0.1",
+    "node-elm-compiler": "^5.0.4",
+    "sass": "^1.26.9"
+  },
+  "scripts": {
+    "dev": "parcel index.html",
+    "build": "parcel build index.html --no-content-hash --no-minify --public-url ./"
+  }
+}

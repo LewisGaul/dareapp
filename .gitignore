@@ -6,3 +6,4 @@ elm-stuff/
 .cache/
 dist/
 yarn.lock
+.idea/

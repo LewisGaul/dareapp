@@ -1,0 +1,63 @@
+
+#
+# How to start the app
+#
+start:
+  host: 0.0.0.0
+  port: 5000
+  static_dir: static
+
+#
+# Feature configuration
+#
+features:
+  core: {}
+  dare_app: {}
+
+#
+# Logging
+#
+logging:
+  version: 1
+  disable_existing_loggers: false
+  formatters:
+    brief:
+      format: "%(levelname)s: [%(name)s] %(message)s"
+    normal:
+      format: "%(asctime)s %(levelname)s: [%(name)s] %(message)s"
+  handlers:
+    console:
+      class: logging.StreamHandler
+      level: INFO
+      formatter: brief
+      stream: ext://sys.stdout
+    debug:
+      class: logging.handlers.RotatingFileHandler
+      level: DEBUG
+      formatter: normal
+      filename: debug.log
+      maxBytes: 1000000
+      backupCount: 3
+      encoding: utf8
+  loggers:
+    "":
+      level: DEBUG
+      handlers: [console, debug]
+    asyncio:
+      level: DEBUG
+      handlers: [debug]
+    paramiko:
+      level: WARNING
+      handlers: [console, debug]
+    ncclient:
+      level: WARNING
+      handlers: [console, debug]
+    network:
+      level: DEBUG
+      handlers: [debug]
+    sanic:
+      level: WARNING
+      handlers: [debug]
+    websockets:
+      level: WARNING
+      handlers: [console, debug]

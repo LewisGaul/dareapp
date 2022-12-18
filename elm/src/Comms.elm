@@ -1,7 +1,8 @@
 port module Comms exposing (sendPort, subscriptions)
 
 import EnTrance.Channel as Channel
-import Json.Decode exposing (Decoder)
+import EnTrance.Feature.Gen as Gen
+import Json.Decode as Decode exposing (Decoder)
 import Types exposing (Msg(..))
 
 
@@ -45,5 +46,18 @@ subscriptions =
 -}
 notifications : List (Decoder Msg)
 notifications =
-    [
+    [ decodeCollectedDares
+    , Gen.decodeRpc "submit_dares" (Decode.null ()) |> Decode.map SubmitDaresResult
     ]
+
+
+decodeCollectedDares : Decoder Msg
+decodeCollectedDares =
+    Gen.decodeRpc "collect_dares" (Decode.list Decode.string)
+        |> Decode.map CollectDares
+
+
+decodeEmpty : Decoder Msg
+decodeEmpty =
+    Gen.decodeRpc "collect_dares" (Decode.list Decode.string)
+        |> Decode.map CollectDares

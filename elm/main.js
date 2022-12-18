@@ -4,7 +4,7 @@
 const dev_mode = process.env.NODE_ENV !== 'production';
 const ws_proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
 const url_port = dev_mode ? 5000 : location.port;
-const ws_url = `${ws_proto}//${location.hostname}:${url_port}${location.pathname}ws`;
+const ws_url = `${ws_proto}//${location.hostname}:${url_port}/ws`;
 
 // Initialise the Elm app
 import { Elm } from './src/Main.elm';

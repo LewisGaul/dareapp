@@ -75,7 +75,8 @@ type Msg
     | LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
     | JoinGame String
-    | ReceiveDares (RpcData (List String))
+    | GameReady (RpcData GlobalData)
     | EntryPageMsg EntryPage.Types.Msg
+    | ReceiveDares (RpcData (List String))
     | GameplayPageMsg GameplayPage.Types.Msg
     | Error String

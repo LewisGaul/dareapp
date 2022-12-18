@@ -43,7 +43,6 @@ update msg model =
                 --    model
 
             else
-                -- TODO: enter waiting phase
                 Channel.sendRpc
                     model
                     (Request.new "submit_dares"

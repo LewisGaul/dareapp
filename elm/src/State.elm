@@ -3,6 +3,8 @@ module State exposing (init, update)
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Comms
+import EnTrance.Channel as Channel
+import EnTrance.Request as Request
 import EntryPage.State
 import EntryPage.Types exposing (Msg(..))
 import GameplayPage.State
@@ -34,7 +36,7 @@ init { basePath } url navKey =
         , basePath = basePath
         , navKey = navKey
         , url = url
-        , phaseData = CreateJoinPhase { code = "" }
+        , phaseData = CreateJoinPhase { code = "foo" }
         }
 
 
@@ -73,11 +75,36 @@ update msg model =
                     )
 
         JoinGame code ->
-            let
-                globalData =
-                    { sessionCode = code, options = testingOptions }
-            in
-            pure { model | phaseData = EntryPhase (EntryPage.State.initState globalData) }
+            case model.phaseData of
+                CreateJoinPhase phaseData ->
+                    Channel.sendRpc
+                        { model
+                            | phaseData =
+                                WaitingPhase
+                                    { message = "players joining"
+                                    , globalData =
+                                        { sessionCode = phaseData.code
+                                        , options = defaultOptions
+                                        }
+                                    }
+                        }
+                        (Request.new "join_game"
+                            |> Request.addString "code" phaseData.code
+                        )
+
+                _ ->
+                    update (Error "Got join request in wrong phase") model
+
+        GameReady result ->
+            case result of
+                Success globalData ->
+                    pure { model | phaseData = EntryPhase (EntryPage.State.initState globalData) }
+
+                Failure error ->
+                    update (Error error) model
+
+                _ ->
+                    pure model
 
         ReceiveDares result ->
             case result of
@@ -116,7 +143,7 @@ update msg model =
                         EndSetupPhase ->
                             EntryPage.State.update innerMsg data
                                 |> Tuple.mapFirst
-                                    (\a ->
+                                    (\_ ->
                                         { model
                                             | phaseData =
                                                 WaitingPhase

@@ -7,6 +7,7 @@ import argparse
 import logging
 import pathlib
 import random
+import string
 import sys
 from collections import defaultdict
 from pprint import pprint
@@ -41,6 +42,7 @@ class GameFeature(entrance.ConfiguredFeature):
     }
     notifications: List[Optional[str]] = [
         None,
+        "game_ready",
         "send_dares",
     ]
 
@@ -50,15 +52,41 @@ class GameFeature(entrance.ConfiguredFeature):
         self.dares: List[str] = []
 
     async def do_join_game(self, code: Optional[str] = None):
-        if code is None:
-            self.code = random.randbytes(5)
+        pprint(active_games)
+        if not code:
+            self.code = "".join(
+                random.choices(string.ascii_uppercase + string.digits, k=5)
+            )
             if self.code in active_games:
                 return self._rpc_failure(f"Code {self.code} already in use")
+            logger.info("Creating game with id %r", self.code)
         else:
             self.code = code
             if len(active_games[self.code]) >= 2:
                 return self._rpc_failure(f"Game {self.code} already full")
+            logger.info("Player joining game with id %r", self.code)
         active_games[self.code].append(self)
+        if len(active_games[self.code]) == 2:
+            for feat in active_games[self.code]:
+                await feat.game_ready()
+
+    async def game_ready(self):
+        result = {
+            **self._result(
+                "game_ready",
+                result={
+                    "session_code": self.code,
+                    "players": 2,
+                    "rounds": 10,
+                    "skips": 5,
+                },
+            ),
+            "channel": "app",
+            "target": "defaultTarget",
+            "userid": "default",
+            "id": 1,
+        }
+        await self.ws_handler.notify(**result)
 
     async def do_submit_dares(self, dares: List[str]):
         self.dares = dares
@@ -77,6 +105,9 @@ class GameFeature(entrance.ConfiguredFeature):
         result = {
             **self._result("send_dares", result=self.dares),
             "channel": "app",
+            "target": "defaultTarget",
+            "userid": "default",
+            "id": 1,
         }
         await self.ws_handler.notify(**result)
 

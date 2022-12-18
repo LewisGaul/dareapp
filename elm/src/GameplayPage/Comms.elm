@@ -5,8 +5,9 @@ port module GameplayPage.Comms exposing
     )
 
 import EnTrance.Channel as Channel
+import EnTrance.Feature.Gen as Gen
 import GameplayPage.Types exposing (Msg(..))
-import Json.Decode exposing (Decoder)
+import Json.Decode as Decode exposing (Decoder)
 
 
 
@@ -23,4 +24,11 @@ port gameplayPageRecv : Channel.RecvPort msg
 -}
 notifications : List (Decoder Msg)
 notifications =
-    []
+    [ decodeOutcome
+    ]
+
+
+decodeOutcome : Decoder Msg
+decodeOutcome =
+    Gen.decodeRpc "send_outcome" Decode.string
+        |> Decode.map ReceivedOutcome

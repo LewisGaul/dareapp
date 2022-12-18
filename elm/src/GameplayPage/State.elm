@@ -1,7 +1,10 @@
 module GameplayPage.State exposing (initState, update)
 
+import EnTrance.Channel as Channel
+import EnTrance.Request as Request
 import GameplayPage.Comms as Comms
 import GameplayPage.Types exposing (Model, Msg(..), Transition(..))
+import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
 import Types exposing (GlobalData, Options)
 
@@ -30,31 +33,47 @@ initState dares globalData =
 update : Msg -> Model GlobalData -> ( Model GlobalData, Cmd Msg )
 update msg model =
     case msg of
-        NextRound refused ->
-            let
-                remainingSkips old =
-                    if refused then
-                        old - 1
-
-                    else
-                        old
-            in
+        NextRound ->
             case model.transition of
                 Ready ->
                     pure { model | transition = Decision }
 
-                Decision ->
+                Outcome _ ->
+                    pure { model | transition = Decision, round = model.round + 1 }
+
+                _ ->
                     -- TODO: Error
                     pure model
 
-                _ ->
-                    if model.round + 1 < model.globalData.options.rounds then
-                        pure
-                            { model
-                                | transition = Decision
-                                , round = model.round + 1
-                                , remainingSkips = remainingSkips model.remainingSkips
-                            }
+        MakeDecision accepted ->
+            let
+                remainingSkips old =
+                    if accepted then
+                        old
 
                     else
-                        pure { model | transition = Finished }
+                        old - 1
+            in
+            case model.transition of
+                Decision ->
+                    Channel.sendRpc
+                        { model
+                            | transition = Waiting
+                            , remainingSkips = remainingSkips model.remainingSkips
+                        }
+                        (Request.new "decision"
+                            |> Request.addBool "accept" accepted
+                        )
+
+                _ ->
+                    -- TODO: Error
+                    pure model
+
+        ReceivedOutcome result ->
+            case result of
+                Success outcome ->
+                    pure { model | transition = Outcome outcome }
+
+                _ ->
+                    -- TODO: Handle errors
+                    pure model

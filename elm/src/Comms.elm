@@ -2,6 +2,8 @@ port module Comms exposing (appSend, subscriptions)
 
 import EnTrance.Channel as Channel
 import EnTrance.Feature.Gen as Gen
+import EntryPage.Comms
+import GameplayPage.Comms
 import Json.Decode as Decode exposing (Decoder)
 import Types exposing (GlobalData, Msg(..))
 
@@ -44,6 +46,8 @@ notifications =
     [ decodeReceivedDares
     , decodeGameReady
     ]
+        ++ List.map (Decode.map EntryPageMsg) EntryPage.Comms.notifications
+        ++ List.map (Decode.map GameplayPageMsg) GameplayPage.Comms.notifications
 
 
 decodeReceivedDares : Decoder Msg

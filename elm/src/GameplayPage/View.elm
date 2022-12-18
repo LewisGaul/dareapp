@@ -39,11 +39,11 @@ view model =
                 Decision ->
                     viewDecision currentDare (model.remainingSkips > 0)
 
-                Accepted ->
-                    viewDare currentDare "Accepted!"
+                Waiting ->
+                    viewDare currentDare "Waiting for other players..."
 
-                Refused ->
-                    viewDare currentDare "Refused!"
+                Outcome message ->
+                    viewDare currentDare message
 
                 Finished ->
                     viewFinished
@@ -54,7 +54,7 @@ viewStart : List (Html Msg)
 viewStart =
     [ Grid.row []
         [ Grid.col []
-            [ button [ Button.primary, onClick (NextRound True) ] [ text "Start" ]
+            [ button [ Button.primary, onClick NextRound ] [ text "Start" ]
             ]
         ]
     ]
@@ -68,12 +68,9 @@ viewDecision dare skipsAllowed =
         ]
     , Grid.row []
         [ Grid.col []
-            [ button [ Button.primary, onClick (NextRound True) ] [ text "Accept" ]
+            [ button [ Button.primary, onClick (MakeDecision True) ] [ text "Accept" ]
             , button
-                [ Button.secondary
-                , onClick (NextRound False)
-                , Button.disabled (skipsAllowed |> not)
-                ]
+                [ Button.secondary, onClick (MakeDecision False), Button.disabled (skipsAllowed |> not) ]
                 [ text "Refuse" ]
             ]
         ]
@@ -81,14 +78,14 @@ viewDecision dare skipsAllowed =
 
 
 viewDare : String -> String -> List (Html Msg)
-viewDare dare decision =
+viewDare dare message =
     [ Grid.row []
         [ Grid.col []
             [ text dare ]
         ]
     , Grid.row []
         [ Grid.col []
-            [ text decision ]
+            [ text message ]
         ]
     ]
 

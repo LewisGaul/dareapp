@@ -39,17 +39,20 @@ class GameFeature(entrance.ConfiguredFeature):
     requests: Dict[str, List[str]] = {
         "join_game": ["?code"],
         "submit_dares": ["dares"],
+        "decision": ["accept"],
     }
     notifications: List[Optional[str]] = [
         None,
         "game_ready",
         "send_dares",
+        "send_outcome",
     ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.code: Optional[str] = None
         self.dares: List[str] = []
+        self.next_choice: Optional[bool] = None
 
     async def do_join_game(self, code: Optional[str] = None):
         pprint(active_games)
@@ -104,6 +107,30 @@ class GameFeature(entrance.ConfiguredFeature):
     async def send_dares(self):
         result = {
             **self._result("send_dares", result=self.dares),
+            "channel": "app",
+            "target": "defaultTarget",
+            "userid": "default",
+            "id": 1,
+        }
+        await self.ws_handler.notify(**result)
+
+    async def do_decision(self, accept: bool):
+        self.next_choice = accept
+        if all(feat.next_choice is not None for feat in active_games[self.code]):
+            # All players have chosen, so send the outcomes.
+            if all(feat.next_choice for feat in active_games[self.code]):
+                outcome = "All players accepted, you must do the dare!"
+            elif self.next_choice is False:
+                outcome = "You refused, all players skip the dares!"
+            else:
+                outcome = "Another player refused, all players skip the dares!"
+            for feat in active_games[self.code]:
+                await feat.send_outcome(outcome)
+                feat.next_choice = None
+
+    async def send_outcome(self, outcome: str):
+        result = {
+            **self._result("send_outcome", result=outcome),
             "channel": "app",
             "target": "defaultTarget",
             "userid": "default",

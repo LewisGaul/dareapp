@@ -1,6 +1,7 @@
 module GameplayPage.Types exposing (Model, Msg(..), Transition(..))
 
 import EnTrance.Channel exposing (SendPort)
+import EnTrance.Types exposing (RpcData)
 
 
 
@@ -20,8 +21,8 @@ type alias Model globalData =
 type Transition
     = Ready
     | Decision
-    | Accepted
-    | Refused
+    | Waiting
+    | Outcome String
     | Finished
 
 
@@ -30,4 +31,6 @@ type Transition
 
 
 type Msg
-    = NextRound Bool
+    = MakeDecision Bool
+    | ReceivedOutcome (RpcData String)
+    | NextRound

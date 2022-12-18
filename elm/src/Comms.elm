@@ -1,4 +1,4 @@
-port module Comms exposing (sendPort, subscriptions)
+port module Comms exposing (appSend, subscriptions)
 
 import EnTrance.Channel as Channel
 import EnTrance.Feature.Gen as Gen
@@ -28,11 +28,6 @@ port appIsUp : Channel.IsUpPort msg
 port errorRecv : Channel.ErrorRecvPort msg
 
 
-sendPort : Channel.SendPort msg
-sendPort =
-    appSend
-
-
 subscriptions : Sub Msg
 subscriptions =
     Sub.batch
@@ -46,18 +41,11 @@ subscriptions =
 -}
 notifications : List (Decoder Msg)
 notifications =
-    [ decodeCollectedDares
-    , Gen.decodeRpc "submit_dares" (Decode.null ()) |> Decode.map SubmitDaresResult
+    [ decodeReceivedDares
     ]
 
 
-decodeCollectedDares : Decoder Msg
-decodeCollectedDares =
-    Gen.decodeRpc "collect_dares" (Decode.list Decode.string)
-        |> Decode.map CollectDares
-
-
-decodeEmpty : Decoder Msg
-decodeEmpty =
-    Gen.decodeRpc "collect_dares" (Decode.list Decode.string)
-        |> Decode.map CollectDares
+decodeReceivedDares : Decoder Msg
+decodeReceivedDares =
+    Gen.decodeRpc "receive_dares" (Decode.list Decode.string)
+        |> Decode.map ReceiveDares

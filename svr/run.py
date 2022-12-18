@@ -4,9 +4,9 @@ EnTrance server process.
 """
 
 import argparse
-import asyncio
 import logging
 import pathlib
+import random
 import sys
 from collections import defaultdict
 from pprint import pprint
@@ -36,38 +36,55 @@ class GameFeature(entrance.ConfiguredFeature):
     name = "dare_app"
 
     requests: Dict[str, List[str]] = {
-        "submit_dares": ["code", "dares"],
+        "join_game": ["?code"],
+        "submit_dares": ["dares"],
     }
     notifications: List[Optional[str]] = [
         None,
-        "collect_dares",
+        "send_dares",
     ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.id = None
+        self.code: Optional[str] = None
+        self.dares: List[str] = []
 
-    async def do_submit_dares(self, code: str, dares: List[str]):
-        self.id = code
-        active_games[code].append(self)
-        pprint(active_games)
-        await asyncio.gather(
-            *(player.collect_dares(dares) for player in active_games[code])
-        )
+    async def do_join_game(self, code: Optional[str] = None):
+        if code is None:
+            self.code = random.randbytes(5)
+            if self.code in active_games:
+                return self._rpc_failure(f"Code {self.code} already in use")
+        else:
+            self.code = code
+            if len(active_games[self.code]) >= 2:
+                return self._rpc_failure(f"Game {self.code} already full")
+        active_games[self.code].append(self)
 
-    async def collect_dares(self, dares: List[str]):
+    async def do_submit_dares(self, dares: List[str]):
+        self.dares = dares
+        pprint(active_games[self.code])
+        pprint([x.dares for x in active_games[self.code]])
+        if all(x.dares for x in active_games[self.code]):
+            # All players have submitted dares, so shuffle and share them out.
+            assert all(len(x.dares) == 10 for x in active_games[self.code])
+            all_dares = [d for feat in active_games[self.code] for d in feat.dares]
+            random.shuffle(all_dares)
+            for i, feat in enumerate(active_games[self.code]):
+                feat.dares = all_dares[i * 10 : (i + 1) * 10]
+                await feat.send_dares()
+
+    async def send_dares(self):
         result = {
-            **self._result("collect_dares", result=dares),
-            "id": 1,
-            "target": "defaultTarget",
+            **self._result("send_dares", result=self.dares),
             "channel": "app",
-            "userid": "default",
         }
         await self.ws_handler.notify(**result)
 
     def close(self):
-        if self.id:
-            active_games[self.id].remove(self)
+        if self.code:
+            active_games[self.code].remove(self)
+            if len(active_games[self.code]) == 0:
+                active_games.pop(self.code)
 
 
 active_games: Dict[str, List[GameFeature]] = defaultdict(list)

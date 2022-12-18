@@ -1,10 +1,19 @@
-module Types exposing (ActiveModel, Model, Msg(..), Options, Phase(..), SetupModel, SharedData)
+module Types exposing
+    ( GlobalData
+    , LandingPageData
+    , Model
+    , Msg(..)
+    , Options
+    , Phase(..)
+    , WaitingData
+    )
 
-import Array exposing (Array)
 import Browser
 import Browser.Navigation as Nav
 import EnTrance.Channel exposing (SendPort)
 import EnTrance.Types exposing (RpcData)
+import EntryPage.Types
+import GameplayPage.Types
 import Url
 
 
@@ -21,11 +30,14 @@ type alias Model =
     , navKey : Nav.Key
     , url : Url.Url
 
-    -- Data
-    , code : String
-    , options : Options
+    -- Main state
     , phaseData : Phase
-    , sharedData : SharedData
+    }
+
+
+type alias GlobalData =
+    { sessionCode : String
+    , options : Options
     }
 
 
@@ -37,25 +49,20 @@ type alias Options =
 
 
 type Phase
-    = SetupPhase SetupModel
-    | ActivePhase ActiveModel
-    | WaitingPhase String
+    = CreateJoinPhase LandingPageData
+    | EntryPhase (EntryPage.Types.Model GlobalData)
+    | ActivePhase (GameplayPage.Types.Model GlobalData)
+    | WaitingPhase WaitingData
 
 
-type alias SetupModel =
-    { inputs : Array String
+type alias LandingPageData =
+    { code : String
     }
 
 
-type alias ActiveModel =
-    { remainingDares : List String
-    , remainingSkips : Int
-    , currentDare : Maybe String
-    }
-
-
-type alias SharedData =
-    { allDares : List String
+type alias WaitingData =
+    { message : String
+    , globalData : GlobalData
     }
 
 
@@ -67,9 +74,8 @@ type Msg
     = ChannelIsUp Bool
     | LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
-    | DareEntry Int String
-    | EndSetupPhase
-    | SubmitDaresResult (RpcData ())
-    | CollectDares (RpcData (List String))
-    | NextRound
+    | JoinGame String
+    | ReceiveDares (RpcData (List String))
+    | EntryPageMsg EntryPage.Types.Msg
+    | GameplayPageMsg GameplayPage.Types.Msg
     | Error String

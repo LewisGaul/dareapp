@@ -1,14 +1,14 @@
 module State exposing (init, update)
 
-import Array
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Comms
-import EnTrance.Channel as Channel
-import EnTrance.Request as Request
+import EntryPage.State
+import EntryPage.Types exposing (Msg(..))
+import GameplayPage.State
 import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
-import Types exposing (ActiveModel, Model, Msg(..), Options, Phase(..), SharedData)
+import Types exposing (Model, Msg(..), Options, Phase(..))
 import Url
 
 
@@ -28,23 +28,13 @@ testingOptions =
 
 init : { basePath : String } -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init { basePath } url navKey =
-    let
-        initOptions =
-            testingOptions
-    in
     pure
-        { sendPort = Comms.sendPort
+        { sendPort = Comms.appSend
         , lastError = Nothing
         , basePath = basePath
         , navKey = navKey
         , url = url
-        , code = ""
-        , options = initOptions
-        , phaseData =
-            SetupPhase
-                { inputs = Array.initialize initOptions.rounds (always "")
-                }
-        , sharedData = { allDares = [] }
+        , phaseData = CreateJoinPhase { code = "" }
         }
 
 
@@ -82,58 +72,35 @@ update msg model =
                     , Nav.load url
                     )
 
-        DareEntry idx text ->
+        JoinGame code ->
             let
-                updatePhaseData old =
-                    SetupPhase { old | inputs = Array.set idx text old.inputs }
+                globalData =
+                    { sessionCode = code, options = testingOptions }
             in
-            case model.phaseData of
-                SetupPhase setupData ->
-                    pure { model | phaseData = updatePhaseData setupData }
+            pure { model | phaseData = EntryPhase (EntryPage.State.initState globalData) }
 
-                _ ->
-                    update
-                        (Error "Unable to handle dare entry outside setup phase")
-                        model
-
-        EndSetupPhase ->
-            case model.phaseData of
-                SetupPhase setupData ->
-                    if List.any String.isEmpty (Array.toList setupData.inputs) then
-                        update
-                            (Error "Enter something in each input box")
-                            model
-
-                    else
-                        Channel.sendRpc
-                            { model | phaseData = WaitingPhase "submitting dares" }
-                            (Request.new "submit_dares"
-                                |> Request.addString "code" model.code
-                                |> Request.addStrings "dares" (Array.toList setupData.inputs)
-                            )
-
-                _ ->
-                    update
-                        (Error "Unable to end setup phase from another phase")
-                        model
-
-        SubmitDaresResult result ->
-            case result of
-                Failure error ->
-                    update (Error error) model
-
-                _ ->
-                    pure model
-
-        CollectDares result ->
-            let
-                updateShared : SharedData -> List String -> SharedData
-                updateShared old dares =
-                    { old | allDares = old.allDares ++ dares }
-            in
+        ReceiveDares result ->
             case result of
                 Success dares ->
-                    pure { model | sharedData = updateShared model.sharedData dares }
+                    case model.phaseData of
+                        WaitingPhase phaseData ->
+                            pure
+                                { model
+                                    | phaseData =
+                                        ActivePhase
+                                            (GameplayPage.State.initState dares phaseData.globalData)
+                                }
+
+                        EntryPhase phaseData ->
+                            pure
+                                { model
+                                    | phaseData =
+                                        ActivePhase
+                                            (GameplayPage.State.initState dares phaseData.globalData)
+                                }
+
+                        _ ->
+                            update (Error "Received dares in unexpected phase") model
 
                 -- Handle as any other error.
                 Failure error ->
@@ -142,29 +109,41 @@ update msg model =
                 _ ->
                     pure model
 
-        NextRound ->
-            let
-                updatePhaseData : ActiveModel -> Phase
-                updatePhaseData old =
-                    case old.remainingDares of
-                        a :: rest ->
-                            ActivePhase
-                                { remainingDares = rest
-                                , remainingSkips = model.options.skips
-                                , currentDare = Just a
-                                }
-
-                        [] ->
-                            ActivePhase old
-            in
+        EntryPageMsg innerMsg ->
             case model.phaseData of
-                ActivePhase activeData ->
-                    pure { model | phaseData = updatePhaseData activeData }
+                EntryPhase data ->
+                    case innerMsg of
+                        EndSetupPhase ->
+                            EntryPage.State.update innerMsg data
+                                |> Tuple.mapFirst
+                                    (\a ->
+                                        { model
+                                            | phaseData =
+                                                WaitingPhase
+                                                    { message = "submitting dares"
+                                                    , globalData = data.globalData
+                                                    }
+                                        }
+                                    )
+                                |> Tuple.mapSecond (Cmd.map EntryPageMsg)
+
+                        _ ->
+                            EntryPage.State.update innerMsg data
+                                |> Tuple.mapFirst (\a -> { model | phaseData = EntryPhase a })
+                                |> Tuple.mapSecond (Cmd.map EntryPageMsg)
 
                 _ ->
-                    update
-                        (Error "Unable to start next round when not in an active game")
-                        model
+                    update (Error "Got entry page message in wrong phase") model
+
+        GameplayPageMsg innerMsg ->
+            case model.phaseData of
+                ActivePhase data ->
+                    GameplayPage.State.update innerMsg data
+                        |> Tuple.mapFirst (\a -> { model | phaseData = ActivePhase a })
+                        |> Tuple.mapSecond (Cmd.map GameplayPageMsg)
+
+                _ ->
+                    update (Error "Got entry page message in wrong phase") model
 
         Error error ->
             pure { model | lastError = Just error }

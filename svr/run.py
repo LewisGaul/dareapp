@@ -118,17 +118,20 @@ class GameFeature(entrance.ConfiguredFeature):
         self.next_choice = accept
         if all(feat.next_choice is not None for feat in active_games[self.code]):
             # All players have chosen, so send the outcomes.
-            if all(feat.next_choice for feat in active_games[self.code]):
-                outcome = "All players accepted, you must do the dare!"
-            elif self.next_choice is False:
-                outcome = "You refused, all players skip the dares!"
-            else:
-                outcome = "Another player refused, all players skip the dares!"
             for feat in active_games[self.code]:
-                await feat.send_outcome(outcome)
+                await feat.send_outcome()
+            for feat in active_games[self.code]:
                 feat.next_choice = None
 
-    async def send_outcome(self, outcome: str):
+    async def send_outcome(self):
+        if all(feat.next_choice is True for feat in active_games[self.code]):
+            outcome = "All players accepted, you must do the dare!"
+        elif all(feat.next_choice is False for feat in active_games[self.code]):
+            outcome = "All players refused, dares are skipped!"
+        elif self.next_choice is False:
+            outcome = "You refused, all players skip the dares!"
+        else:
+            outcome = "Another player refused, all players skip the dares!"
         result = {
             **self._result("send_outcome", result=outcome),
             "channel": "app",

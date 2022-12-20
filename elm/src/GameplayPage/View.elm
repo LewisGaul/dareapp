@@ -43,7 +43,7 @@ view model =
                     viewDare currentDare "Waiting for other players..."
 
                 Outcome message ->
-                    viewDare currentDare message
+                    viewOutcome currentDare message
 
                 Finished ->
                     viewFinished
@@ -88,6 +88,16 @@ viewDare dare message =
             [ text message ]
         ]
     ]
+
+
+viewOutcome : String -> String -> List (Html Msg)
+viewOutcome dare message =
+    viewDare dare message
+        ++ [ Grid.row []
+                [ Grid.col []
+                    [ button [ Button.primary, onClick NextRound ] [ text "Next round" ] ]
+                ]
+           ]
 
 
 viewFinished : List (Html Msg)

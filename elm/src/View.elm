@@ -17,6 +17,7 @@ import Types
         , Phase(..)
         , WaitingData
         )
+import Utils exposing (viewError)
 
 
 {-| Top-level view
@@ -25,7 +26,7 @@ view : Model -> Document Msg
 view model =
     { title = "Dare app"
     , body =
-        [ viewErrors model.lastError
+        [ viewError model.lastError
         ]
             ++ viewPhase model.phaseData
     }
@@ -60,17 +61,3 @@ viewLandingPage data =
 viewWaitingPhase : WaitingData -> List (Html Msg)
 viewWaitingPhase model =
     [ text ("Waiting for other players: " ++ model.message) ]
-
-
-
--- View errors
-
-
-viewErrors : Maybe String -> Html msg
-viewErrors error =
-    case error of
-        Just e ->
-            div [ class "error" ] [ text e ]
-
-        Nothing ->
-            div [] []

@@ -206,7 +206,7 @@ def start(config):
 
 def parse_args(argv):
     parser = argparse.ArgumentParser()
-    parser.add_argument("-p", "--port", help="Port to run on")
+    parser.add_argument("-p", "--port", type=int, help="Port to run on")
     parser.add_argument("-a", "--addr", help="Bind address")
     parser.add_argument(
         "-d", "--debug", action="store_true", help="Turn on debug logging"

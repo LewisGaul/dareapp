@@ -35,20 +35,12 @@ update msg model =
             pure { model | inputs = Array.set idx text model.inputs }
 
         EndSetupPhase ->
-            if List.any String.isEmpty (Array.toList model.inputs) then
-                -- TODO: handle error
-                pure model
-                --update
-                --    (Error "Enter something in each input box")
-                --    model
-
-            else
-                Channel.sendRpc
-                    model
-                    (Request.new "submit_dares"
-                        |> Request.addString "code" model.globalData.sessionCode
-                        |> Request.addStrings "dares" (Array.toList model.inputs)
-                    )
+            Channel.sendRpc
+                model
+                (Request.new "submit_dares"
+                    |> Request.addString "code" model.globalData.sessionCode
+                    |> Request.addStrings "dares" (Array.toList model.inputs)
+                )
 
         SubmitDaresResult result ->
             case result of

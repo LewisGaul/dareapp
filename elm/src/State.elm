@@ -1,5 +1,6 @@
 module State exposing (init, update)
 
+import Array
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Comms
@@ -149,18 +150,23 @@ update msg model =
                 EntryPhase data ->
                     case innerMsg of
                         EntryPage.Types.EndSetupPhase ->
-                            EntryPage.State.update innerMsg data
-                                |> Tuple.mapFirst
-                                    (\_ ->
-                                        { model
-                                            | phaseData =
-                                                WaitingPhase
-                                                    { message = "submitting dares"
-                                                    , globalData = data.globalData
-                                                    }
-                                        }
-                                    )
-                                |> Tuple.mapSecond (Cmd.map EntryPageMsg)
+                            if List.any String.isEmpty (Array.toList data.inputs) then
+                                pure { model | lastError = Just "Enter something in each input box" }
+
+                            else
+                                EntryPage.State.update innerMsg data
+                                    |> Tuple.mapFirst
+                                        (\_ ->
+                                            { model
+                                                | phaseData =
+                                                    WaitingPhase
+                                                        { message = "submitting dares"
+                                                        , globalData = data.globalData
+                                                        }
+                                                , lastError = Nothing
+                                            }
+                                        )
+                                    |> Tuple.mapSecond (Cmd.map EntryPageMsg)
 
                         _ ->
                             EntryPage.State.update innerMsg data

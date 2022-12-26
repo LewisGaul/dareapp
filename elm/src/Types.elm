@@ -74,9 +74,9 @@ type Msg
     = ChannelIsUp Bool
     | LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
+    | Error String
     | JoinGame String
     | GameReady (RpcData GlobalData)
     | EntryPageMsg EntryPage.Types.Msg
     | ReceiveDares (RpcData (List String))
     | GameplayPageMsg GameplayPage.Types.Msg
-    | Error String

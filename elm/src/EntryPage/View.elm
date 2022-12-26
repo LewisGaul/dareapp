@@ -20,7 +20,7 @@ view model =
                         [ placeholder "Enter dare here"
                         , value dare
                         , onInput (DareEntry idx)
-                        , maxlength 50
+                        , maxlength 200
                         ]
                         []
                     ]

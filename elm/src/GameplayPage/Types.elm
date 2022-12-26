@@ -1,7 +1,8 @@
-module GameplayPage.Types exposing (Model, Msg(..), Transition(..))
+module GameplayPage.Types exposing (Model2, Msg(..), Transition(..))
 
 import EnTrance.Channel exposing (SendPort)
 import EnTrance.Types exposing (RpcData)
+import SharedTypes exposing (GlobalData)
 
 
 
@@ -11,6 +12,16 @@ import EnTrance.Types exposing (RpcData)
 type alias Model globalData =
     { sendPort : SendPort Msg
     , globalData : globalData
+    , dares : List String
+    , round : Int
+    , remainingSkips : Int
+    , transition : Transition
+    }
+
+
+type alias Model2 =
+    { sendPort : SendPort Msg
+    , globalData : GlobalData
     , dares : List String
     , round : Int
     , remainingSkips : Int

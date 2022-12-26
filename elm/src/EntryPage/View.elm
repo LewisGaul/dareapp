@@ -7,10 +7,9 @@ import EntryPage.Types exposing (Model, Msg(..))
 import Html exposing (Html, input, text)
 import Html.Attributes exposing (maxlength, placeholder, value)
 import Html.Events exposing (onInput)
-import Types exposing (GlobalData, Options)
 
 
-view : Model GlobalData -> List (Html Msg)
+view : Model -> List (Html Msg)
 view model =
     let
         inputBox idx dare =

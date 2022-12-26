@@ -1,10 +1,7 @@
 module Types exposing
-    ( GlobalData
-    , LandingPageData
+    ( LandingPageData
     , Model
     , Msg(..)
-    , Options
-    , Phase(..)
     , WaitingData
     )
 
@@ -14,6 +11,8 @@ import EnTrance.Channel exposing (SendPort)
 import EnTrance.Types exposing (RpcData)
 import EntryPage.Types
 import GameplayPage.Types
+import Phases exposing (Phase)
+import SharedTypes exposing (GlobalData)
 import Url
 
 
@@ -31,27 +30,14 @@ type alias Model =
     , url : Url.Url
 
     -- Main state
-    , phaseData : Phase
+    , phase : Phase
     }
 
 
-type alias GlobalData =
-    { sessionCode : String
-    , options : Options
-    }
-
-
-type alias Options =
-    { players : Int
-    , rounds : Int
-    , skips : Int
-    }
-
-
-type Phase
+type PhaseOld
     = CreateJoinPhase LandingPageData
-    | EntryPhase (EntryPage.Types.Model GlobalData)
-    | ActivePhase (GameplayPage.Types.Model GlobalData)
+    | EntryPhase EntryPage.Types.Model
+    | ActivePhase GameplayPage.Types.Model2
     | WaitingPhase WaitingData
 
 
@@ -74,9 +60,9 @@ type Msg
     = ChannelIsUp Bool
     | LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
-    | JoinGame String
-    | GameReady (RpcData GlobalData)
-    | EntryPageMsg EntryPage.Types.Msg
-    | ReceiveDares (RpcData (List String))
-    | GameplayPageMsg GameplayPage.Types.Msg
     | Error String
+      --| JoinGame String
+      --| GameReady (RpcData GlobalData)
+    | EntryPageMsg EntryPage.Types.Msg
+      --| ReceiveDares (RpcData (List String))
+    | GameplayPageMsg GameplayPage.Types.Msg

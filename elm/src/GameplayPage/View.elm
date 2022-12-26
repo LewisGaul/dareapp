@@ -3,12 +3,11 @@ module GameplayPage.View exposing (view)
 import Array
 import Bootstrap.Button as Button exposing (button, onClick)
 import Bootstrap.Grid as Grid
-import GameplayPage.Types exposing (Model, Msg(..), Transition(..))
+import GameplayPage.Types exposing (Model2, Msg(..), Transition(..))
 import Html exposing (Html, text)
-import Types exposing (GlobalData, Options)
 
 
-view : Model GlobalData -> List (Html Msg)
+view : Model2 -> List (Html Msg)
 view model =
     let
         currentDare =

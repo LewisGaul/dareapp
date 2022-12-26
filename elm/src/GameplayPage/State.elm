@@ -1,25 +1,25 @@
-module GameplayPage.State exposing (initState, update)
+module GameplayPage.State exposing (init, update)
 
 import EnTrance.Channel as Channel
 import EnTrance.Request as Request
 import GameplayPage.Comms as Comms
-import GameplayPage.Types exposing (Model, Msg(..), Transition(..))
+import GameplayPage.Types exposing (Model2, Msg(..), Transition(..))
 import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
-import Types exposing (GlobalData, Options)
+import SharedTypes exposing (dummyGlobalData)
 
 
 
 -- INITIAL STATE
 
 
-initState : List String -> GlobalData -> Model GlobalData
-initState dares globalData =
+init : () -> Model2
+init _ =
     { sendPort = Comms.gameplayPageSend
-    , globalData = globalData
-    , dares = dares
+    , globalData = dummyGlobalData
+    , dares = []
     , round = 0
-    , remainingSkips = globalData.options.skips
+    , remainingSkips = 5
     , transition = Ready
     }
 
@@ -30,7 +30,7 @@ initState dares globalData =
 
 {-| Handle incoming messages.
 -}
-update : Msg -> Model GlobalData -> ( Model GlobalData, Cmd Msg )
+update : Msg -> Model2 -> ( Model2, Cmd Msg )
 update msg model =
     case msg of
         NextRound ->

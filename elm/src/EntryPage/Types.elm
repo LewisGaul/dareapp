@@ -3,15 +3,16 @@ module EntryPage.Types exposing (Model, Msg(..))
 import Array exposing (Array)
 import EnTrance.Channel exposing (SendPort)
 import EnTrance.Types exposing (RpcData)
+import SharedTypes exposing (GlobalData)
 
 
 
 -- MODEL
 
 
-type alias Model globalData =
+type alias Model =
     { sendPort : SendPort Msg
-    , globalData : globalData
+    , globalData : GlobalData
     , inputs : Array String
     }
 

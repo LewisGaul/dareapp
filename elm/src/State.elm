@@ -8,9 +8,11 @@ import EnTrance.Request as Request
 import EntryPage.State
 import EntryPage.Types
 import GameplayPage.State
+import Phases exposing (Phase(..), entryPhase)
 import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
-import Types exposing (Model, Msg(..), Options, Phase(..))
+import SharedTypes exposing (Options)
+import Types exposing (Model, Msg(..))
 import Url
 
 
@@ -36,7 +38,7 @@ init { basePath } url navKey =
         , basePath = basePath
         , navKey = navKey
         , url = url
-        , phaseData = CreateJoinPhase { code = "foo" }
+        , phase = entryPhase
         }
 
 
@@ -78,74 +80,74 @@ update msg model =
         Error error ->
             pure { model | lastError = Just error }
 
-        -- User creates/joins a game
-        JoinGame code ->
-            case model.phaseData of
-                CreateJoinPhase phaseData ->
-                    Channel.sendRpc
-                        { model
-                            | phaseData =
-                                WaitingPhase
-                                    { message = "players joining"
-                                    , globalData =
-                                        { sessionCode = phaseData.code
-                                        , options = defaultOptions
-                                        }
-                                    }
-                        }
-                        (Request.new "join_game"
-                            |> Request.addString "code" phaseData.code
-                        )
-
-                _ ->
-                    update (Error "Got join request in wrong phase") model
-
-        -- Notification of game being ready
-        GameReady result ->
-            case result of
-                Success globalData ->
-                    pure { model | phaseData = EntryPhase (EntryPage.State.initState globalData) }
-
-                Failure error ->
-                    update (Error error) model
-
-                _ ->
-                    pure model
-
-        -- Notification of all dares being collected
-        ReceiveDares result ->
-            case result of
-                Success dares ->
-                    case model.phaseData of
-                        WaitingPhase phaseData ->
-                            pure
-                                { model
-                                    | phaseData =
-                                        ActivePhase
-                                            (GameplayPage.State.initState dares phaseData.globalData)
-                                }
-
-                        EntryPhase phaseData ->
-                            pure
-                                { model
-                                    | phaseData =
-                                        ActivePhase
-                                            (GameplayPage.State.initState dares phaseData.globalData)
-                                }
-
-                        _ ->
-                            update (Error "Received dares in unexpected phase") model
-
-                -- Handle as any other error.
-                Failure error ->
-                    update (Error error) model
-
-                _ ->
-                    pure model
-
+        --
+        ---- User creates/joins a game
+        --JoinGame code ->
+        --    case model.phaseData of
+        --        CreateJoinPhase phaseData ->
+        --            Channel.sendRpc
+        --                { model
+        --                    | phaseData =
+        --                        WaitingPhase
+        --                            { message = "players joining"
+        --                            , globalData =
+        --                                { sessionCode = phaseData.code
+        --                                , options = defaultOptions
+        --                                }
+        --                            }
+        --                }
+        --                (Request.new "join_game"
+        --                    |> Request.addString "code" phaseData.code
+        --                )
+        --
+        --        _ ->
+        --            update (Error "Got join request in wrong phase") model
+        --
+        ---- Notification of game being ready
+        --GameReady result ->
+        --    case result of
+        --        Success globalData ->
+        --            pure { model | phaseData = EntryPhase (EntryPage.State.initState globalData) }
+        --
+        --        Failure error ->
+        --            update (Error error) model
+        --
+        --        _ ->
+        --            pure model
+        --
+        ---- Notification of all dares being collected
+        --ReceiveDares result ->
+        --    case result of
+        --        Success dares ->
+        --            case model.phaseData of
+        --                WaitingPhase phaseData ->
+        --                    pure
+        --                        { model
+        --                            | phaseData =
+        --                                ActivePhase
+        --                                    (GameplayPage.State.initState dares phaseData.globalData)
+        --                        }
+        --
+        --                EntryPhase phaseData ->
+        --                    pure
+        --                        { model
+        --                            | phaseData =
+        --                                ActivePhase
+        --                                    (GameplayPage.State.initState dares phaseData.globalData)
+        --                        }
+        --
+        --                _ ->
+        --                    update (Error "Received dares in unexpected phase") model
+        --
+        --        -- Handle as any other error.
+        --        Failure error ->
+        --            update (Error error) model
+        --
+        --        _ ->
+        --            pure model
         -- Messages to pass to subpage handling
         EntryPageMsg innerMsg ->
-            case model.phaseData of
+            case model.phase of
                 EntryPhase data ->
                     case innerMsg of
                         EntryPage.Types.EndSetupPhase ->
@@ -153,7 +155,7 @@ update msg model =
                                 |> Tuple.mapFirst
                                     (\_ ->
                                         { model
-                                            | phaseData =
+                                            | phase =
                                                 WaitingPhase
                                                     { message = "submitting dares"
                                                     , globalData = data.globalData
@@ -164,17 +166,17 @@ update msg model =
 
                         _ ->
                             EntryPage.State.update innerMsg data
-                                |> Tuple.mapFirst (\a -> { model | phaseData = EntryPhase a })
+                                |> Tuple.mapFirst (\a -> { model | phase = EntryPhase a })
                                 |> Tuple.mapSecond (Cmd.map EntryPageMsg)
 
                 _ ->
                     update (Error "Got entry page message in wrong phase") model
 
         GameplayPageMsg innerMsg ->
-            case model.phaseData of
+            case model.phase of
                 ActivePhase data ->
                     GameplayPage.State.update innerMsg data
-                        |> Tuple.mapFirst (\a -> { model | phaseData = ActivePhase a })
+                        |> Tuple.mapFirst (\a -> { model | phase = ActivePhase a })
                         |> Tuple.mapSecond (Cmd.map GameplayPageMsg)
 
                 _ ->

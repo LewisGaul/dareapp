@@ -5,7 +5,8 @@ import EnTrance.Feature.Gen as Gen
 import EntryPage.Comms
 import GameplayPage.Comms
 import Json.Decode as Decode exposing (Decoder)
-import Types exposing (GlobalData, Msg(..))
+import SharedTypes exposing (GlobalData)
+import Types exposing (Msg(..))
 
 
 
@@ -60,7 +61,7 @@ decodeGlobalData : Decoder GlobalData
 decodeGlobalData =
     Decode.map2 GlobalData
         (Decode.field "session_code" Decode.string)
-        (Decode.map3 Types.Options
+        (Decode.map3 SharedTypes.Options
             (Decode.field "players" Decode.int)
             (Decode.field "rounds" Decode.int)
             (Decode.field "skips" Decode.int)

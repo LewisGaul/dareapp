@@ -1,4 +1,4 @@
-module EntryPage.State exposing (initState, update)
+module EntryPage.State exposing (init, update)
 
 import Array
 import EnTrance.Channel as Channel
@@ -7,18 +7,18 @@ import EntryPage.Comms as Comms
 import EntryPage.Types exposing (Model, Msg(..))
 import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
-import Types exposing (GlobalData, Options)
+import SharedTypes exposing (GlobalData, Options, dummyGlobalData)
 
 
 
 -- INITIAL STATE
 
 
-initState : GlobalData -> Model GlobalData
-initState globalData =
+init : () -> Model
+init _ =
     { sendPort = Comms.entryPageSend
-    , globalData = globalData
-    , inputs = Array.initialize globalData.options.rounds (always "")
+    , globalData = dummyGlobalData
+    , inputs = Array.initialize dummyGlobalData.options.rounds (always "")
     }
 
 
@@ -28,7 +28,7 @@ initState globalData =
 
 {-| Handle incoming messages.
 -}
-update : Msg -> Model GlobalData -> ( Model GlobalData, Cmd Msg )
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         DareEntry idx text ->

@@ -7,14 +7,12 @@ import EntryPage.View
 import GameplayPage.View
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (class)
+import Phases exposing (Phase)
 import Types
     exposing
-        ( GlobalData
-        , LandingPageData
+        ( LandingPageData
         , Model
         , Msg(..)
-        , Options
-        , Phase(..)
         , WaitingData
         )
 
@@ -27,7 +25,7 @@ view model =
     , body =
         [ viewErrors model.lastError
         ]
-            ++ viewPhase model.phaseData
+            ++ viewPhase model.phase
     }
 
 
@@ -45,6 +43,9 @@ viewPhase phase =
 
         WaitingPhase p ->
             viewWaitingPhase p
+
+        GameplayPhase phaseFuncs ->
+
 
 
 viewLandingPage : LandingPageData -> List (Html Msg)

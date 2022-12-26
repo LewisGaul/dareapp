@@ -6,7 +6,7 @@ import Comms
 import EnTrance.Channel as Channel
 import EnTrance.Request as Request
 import EntryPage.State
-import EntryPage.Types exposing (Msg(..))
+import EntryPage.Types
 import GameplayPage.State
 import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
@@ -49,6 +49,7 @@ init { basePath } url navKey =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        -- Global message types
         ChannelIsUp up ->
             if up then
                 -- TODO: Do something? Store in state?
@@ -74,6 +75,10 @@ update msg model =
                     , Nav.load url
                     )
 
+        Error error ->
+            pure { model | lastError = Just error }
+
+        -- User creates/joins a game
         JoinGame code ->
             case model.phaseData of
                 CreateJoinPhase phaseData ->
@@ -95,6 +100,7 @@ update msg model =
                 _ ->
                     update (Error "Got join request in wrong phase") model
 
+        -- Notification of game being ready
         GameReady result ->
             case result of
                 Success globalData ->
@@ -106,6 +112,7 @@ update msg model =
                 _ ->
                     pure model
 
+        -- Notification of all dares being collected
         ReceiveDares result ->
             case result of
                 Success dares ->
@@ -136,11 +143,12 @@ update msg model =
                 _ ->
                     pure model
 
+        -- Messages to pass to subpage handling
         EntryPageMsg innerMsg ->
             case model.phaseData of
                 EntryPhase data ->
                     case innerMsg of
-                        EndSetupPhase ->
+                        EntryPage.Types.EndSetupPhase ->
                             EntryPage.State.update innerMsg data
                                 |> Tuple.mapFirst
                                     (\_ ->
@@ -171,6 +179,3 @@ update msg model =
 
                 _ ->
                     update (Error "Got entry page message in wrong phase") model
-
-        Error error ->
-            pure { model | lastError = Just error }

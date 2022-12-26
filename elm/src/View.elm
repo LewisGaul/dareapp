@@ -7,7 +7,16 @@ import EntryPage.View
 import GameplayPage.View
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (class)
-import Types exposing (GlobalData, LandingPageData, Model, Msg(..), Options, Phase(..), WaitingData)
+import Types
+    exposing
+        ( GlobalData
+        , LandingPageData
+        , Model
+        , Msg(..)
+        , Options
+        , Phase(..)
+        , WaitingData
+        )
 
 
 {-| Top-level view

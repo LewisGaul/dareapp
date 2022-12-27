@@ -5,12 +5,10 @@ import Bootstrap.Grid as Grid
 import Browser exposing (Document)
 import EntryPage.View
 import GameplayPage.View
-import Html exposing (Html, div, text)
-import Html.Attributes exposing (class)
+import Html exposing (Html, text)
 import Types
     exposing
         ( GlobalData
-        , LandingPageData
         , Model
         , Msg(..)
         , Options
@@ -48,11 +46,11 @@ viewPhase phase =
             viewWaitingPhase p
 
 
-viewLandingPage : LandingPageData -> List (Html Msg)
+viewLandingPage : GlobalData -> List (Html Msg)
 viewLandingPage data =
     [ Grid.row []
         [ Grid.col []
-            [ button [ onClick (JoinGame data.code) ] [ text "Join" ]
+            [ button [ onClick (JoinGame data.sessionCode) ] [ text "Join" ]
             ]
         ]
     ]

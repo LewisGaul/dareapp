@@ -36,6 +36,7 @@ subscriptions =
         [ errorRecv Error
         , appIsUp ChannelIsUp
         , Channel.sub appRecv Error notifications
+        , Sub.map EntryPageMsg EntryPage.Comms.subscriptions
         ]
 
 
@@ -45,6 +46,7 @@ notifications : List (Decoder Msg)
 notifications =
     [ decodeReceivedDares
     , decodeGameReady
+    , decodeJoinGameResult
     ]
         ++ List.map (Decode.map EntryPageMsg) EntryPage.Comms.notifications
         ++ List.map (Decode.map GameplayPageMsg) GameplayPage.Comms.notifications
@@ -71,3 +73,9 @@ decodeGameReady : Decoder Msg
 decodeGameReady =
     Gen.decodeRpc "game_ready" decodeGlobalData
         |> Decode.map GameReady
+
+
+decodeJoinGameResult : Decoder Msg
+decodeJoinGameResult =
+    Gen.decodeRpc "join_game" Decode.string
+        |> Decode.map JoinGameResult

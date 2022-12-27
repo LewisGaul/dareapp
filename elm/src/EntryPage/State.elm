@@ -51,3 +51,7 @@ update msg model =
 
                 _ ->
                     pure model
+
+        Error error ->
+            -- TODO
+            pure model

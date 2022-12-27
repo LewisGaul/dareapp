@@ -1,6 +1,5 @@
 module Types exposing
     ( GlobalData
-    , LandingPageData
     , Model
     , Msg(..)
     , Options
@@ -49,15 +48,10 @@ type alias Options =
 
 
 type Phase
-    = CreateJoinPhase LandingPageData
+    = CreateJoinPhase GlobalData
     | EntryPhase (EntryPage.Types.Model GlobalData)
     | ActivePhase (GameplayPage.Types.Model GlobalData)
     | WaitingPhase WaitingData
-
-
-type alias LandingPageData =
-    { code : String
-    }
 
 
 type alias WaitingData =
@@ -76,6 +70,7 @@ type Msg
     | UrlChanged Url.Url
     | Error String
     | JoinGame String
+    | JoinGameResult (RpcData String)
     | GameReady (RpcData GlobalData)
     | EntryPageMsg EntryPage.Types.Msg
     | ReceiveDares (RpcData (List String))

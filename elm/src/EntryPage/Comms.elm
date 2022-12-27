@@ -1,4 +1,9 @@
-port module EntryPage.Comms exposing (entryPageRecv, entryPageSend, notifications)
+port module EntryPage.Comms exposing
+    ( entryPageRecv
+    , entryPageSend
+    , notifications
+    , subscriptions
+    )
 
 import EnTrance.Channel as Channel
 import EnTrance.Feature.Gen as Gen
@@ -14,6 +19,11 @@ port entryPageSend : Channel.SendPort msg
 
 
 port entryPageRecv : Channel.RecvPort msg
+
+
+subscriptions : Sub Msg
+subscriptions =
+    Channel.sub entryPageRecv Error notifications
 
 
 {-| The notifications we want to decode.

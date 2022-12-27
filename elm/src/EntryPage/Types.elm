@@ -21,6 +21,7 @@ type alias Model globalData =
 
 
 type Msg
-    = DareEntry Int String
+    = Error String
+    | DareEntry Int String
     | EndSetupPhase
     | SubmitDaresResult (RpcData ())

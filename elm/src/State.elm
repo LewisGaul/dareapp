@@ -1,4 +1,4 @@
-module State exposing (init, update)
+module State exposing (defaultOptions, init, update)
 
 import Array
 import Browser exposing (UrlRequest(..))
@@ -11,8 +11,10 @@ import EntryPage.Types
 import GameplayPage.State
 import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
-import Types exposing (Model, Msg(..), Options, Phase(..))
+import Types exposing (GlobalData, Model, Msg(..), Options, Phase(..))
 import Url
+import Url.Parser as Parser
+import UrlParser exposing (urlParser)
 
 
 
@@ -24,11 +26,6 @@ defaultOptions =
     { players = 2, rounds = 10, skips = 5 }
 
 
-testingOptions : Options
-testingOptions =
-    { players = 2, rounds = 4, skips = 2 }
-
-
 init : { basePath : String } -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init { basePath } url navKey =
     pure
@@ -37,7 +34,7 @@ init { basePath } url navKey =
         , basePath = basePath
         , navKey = navKey
         , url = url
-        , phaseData = CreateJoinPhase { code = "foo" }
+        , phaseData = CreateJoinPhase { sessionCode = "", options = defaultOptions }
         }
 
 
@@ -53,8 +50,12 @@ update msg model =
         -- Global message types
         ChannelIsUp up ->
             if up then
-                -- TODO: Do something? Store in state?
-                pure model
+                case Parser.parse urlParser model.url of
+                    Just globalData ->
+                        joinGame model globalData
+
+                    Nothing ->
+                        pure model
 
             else
                 -- meh
@@ -82,24 +83,37 @@ update msg model =
         -- User creates/joins a game
         JoinGame code ->
             case model.phaseData of
-                CreateJoinPhase phaseData ->
-                    Channel.sendRpc
-                        { model
-                            | phaseData =
-                                WaitingPhase
-                                    { message = "players joining"
-                                    , globalData =
-                                        { sessionCode = phaseData.code
-                                        , options = defaultOptions
-                                        }
-                                    }
-                        }
-                        (Request.new "join_game"
-                            |> Request.addString "code" phaseData.code
-                        )
+                CreateJoinPhase _ ->
+                    joinGame model { sessionCode = code, options = defaultOptions }
 
                 _ ->
                     update (Error "Got join request in wrong phase") model
+
+        JoinGameResult result ->
+            case result of
+                Success code ->
+                    let
+                        newGlobalData old =
+                            { sessionCode = code, options = old.options }
+
+                        newPhaseData =
+                            case model.phaseData of
+                                WaitingPhase waitingData ->
+                                    WaitingPhase
+                                        { message = waitingData.message ++ " (session code: " ++ code ++ ")"
+                                        , globalData = newGlobalData waitingData.globalData
+                                        }
+
+                                _ ->
+                                    model.phaseData
+                    in
+                    pure { model | phaseData = newPhaseData }
+
+                Failure error ->
+                    update (Error error) model
+
+                _ ->
+                    pure model
 
         -- Notification of game being ready
         GameReady result ->
@@ -185,3 +199,20 @@ update msg model =
 
                 _ ->
                     update (Error "Got entry page message in wrong phase") model
+
+
+joinGame : Model -> GlobalData -> ( Model, Cmd Msg )
+joinGame model globalData =
+    Channel.sendRpc
+        { model
+            | phaseData =
+                WaitingPhase
+                    { message = "players joining"
+                    , globalData = globalData
+                    }
+        }
+        (Request.new "join_game"
+            |> Request.addString "code" globalData.sessionCode
+            |> Request.addInt "rounds" globalData.options.rounds
+            |> Request.addInt "skips" globalData.options.skips
+        )

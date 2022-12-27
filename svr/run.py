@@ -5,14 +5,15 @@ EnTrance server process.
 """
 
 import argparse
+import enum
 import logging
 import pathlib
 import random
 import string
 import sys
-from collections import defaultdict
+from dataclasses import dataclass
 from pprint import pprint
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 import entrance
 import sanic
@@ -38,7 +39,7 @@ class GameFeature(entrance.ConfiguredFeature):
     name = "dare_app"
 
     requests: Dict[str, List[str]] = {
-        "join_game": ["?code"],
+        "join_game": ["code", "rounds", "skips"],
         "submit_dares": ["dares"],
         "decision": ["accept"],
     }
@@ -52,37 +53,52 @@ class GameFeature(entrance.ConfiguredFeature):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.code: Optional[str] = None
-        self.dares: List[str] = []
+        self.player_state: Optional[PlayerState] = None
         self.next_choice: Optional[bool] = None
 
-    async def do_join_game(self, code: Optional[str] = None):
-        pprint(active_games)
+    async def do_join_game(self, code: str, rounds: int, skips: int):
         if not code:
             self.code = "".join(
                 random.choices(string.ascii_uppercase + string.digits, k=5)
             )
-            if self.code in active_games:
+            if self.code in sessions:
                 return self._rpc_failure(f"Code {self.code} already in use")
-            logger.info("Creating game with id %r", self.code)
         else:
             self.code = code
-            if len(active_games[self.code]) >= 2:
+        # Check game is available and compatible.
+        if self.code in sessions:
+            sess = sessions[self.code]
+            if len(sess.players) >= 2:
                 return self._rpc_failure(f"Game {self.code} already full")
-            logger.info("Player joining game with id %r", self.code)
-        active_games[self.code].append(self)
-        if len(active_games[self.code]) == 2:
-            for feat in active_games[self.code]:
-                await feat.game_ready()
+            if (rounds, skips) != (sess.rounds, sess.skips):
+                return self._rpc_failure(
+                    f"Requested game options do not match existing game with code {self.code}"
+                )
+        else:
+            logger.info("Creating game with id %r", self.code)
+            sess = SessionState(code=self.code, rounds=rounds, skips=skips, players=[])
+            sessions[self.code] = sess
+        # Add player to game.
+        logger.info("Player joining game with id %r", self.code)
+        self.player_state = PlayerState(self)
+        sess.players.append(self.player_state)
+        pprint(sessions)
+        if len(sess.players) == 2:
+            for player in sessions[self.code].players:
+                await player.feature.game_ready()
+        else:
+            return self._rpc_success(self.code)
 
     async def game_ready(self):
+        sess = sessions[self.code]
         result = {
             **self._result(
                 "game_ready",
                 result={
                     "session_code": self.code,
                     "players": 2,
-                    "rounds": 10,
-                    "skips": 5,
+                    "rounds": sess.rounds,
+                    "skips": sess.skips,
                 },
             ),
             "channel": "app",
@@ -93,21 +109,26 @@ class GameFeature(entrance.ConfiguredFeature):
         await self.ws_handler.notify(**result)
 
     async def do_submit_dares(self, dares: List[str]):
-        self.dares = dares
-        pprint(active_games[self.code])
-        pprint([x.dares for x in active_games[self.code]])
-        if all(x.dares for x in active_games[self.code]):
+        self.player_state.submitted_dares = dares
+        sess = sessions[self.code]
+        if all(x.submitted_dares for x in sess.players):
             # All players have submitted dares, so shuffle and share them out.
-            assert all(len(x.dares) == 10 for x in active_games[self.code])
-            all_dares = [d for feat in active_games[self.code] for d in feat.dares]
+            assert all(len(x.submitted_dares) == sess.rounds for x in sess.players)
+            all_dares = [d for player in sess.players for d in player.submitted_dares]
             random.shuffle(all_dares)
-            for i, feat in enumerate(active_games[self.code]):
-                feat.dares = all_dares[i * 10 : (i + 1) * 10]
-                await feat.send_dares()
+            for i, player in enumerate(sess.players):
+                allocated_dares = all_dares[i * sess.rounds : (i + 1) * sess.rounds]
+                player.game_state = PlayerGameState(
+                    allocated_dares, remaining_skips=sess.skips
+                )
+                if player.feature is None:
+                    logger.debug("Player not connected to session %s", self.code)
+                    continue
+                await player.feature.send_dares(allocated_dares)
 
-    async def send_dares(self):
+    async def send_dares(self, dares: List[str]):
         result = {
-            **self._result("send_dares", result=self.dares),
+            **self._result("send_dares", result=dares),
             "channel": "app",
             "target": "defaultTarget",
             "userid": "default",
@@ -117,17 +138,18 @@ class GameFeature(entrance.ConfiguredFeature):
 
     async def do_decision(self, accept: bool):
         self.next_choice = accept
-        if all(feat.next_choice is not None for feat in active_games[self.code]):
+        sess = sessions[self.code]
+        if all(player.feature.next_choice is not None for player in sess.players):
             # All players have chosen, so send the outcomes.
-            for feat in active_games[self.code]:
-                await feat.send_outcome()
-            for feat in active_games[self.code]:
-                feat.next_choice = None
+            for player in sess.players:
+                await player.feature.send_outcome()
+            for player in sess.players:
+                player.feature.next_choice = None
 
     async def send_outcome(self):
-        if all(feat.next_choice is True for feat in active_games[self.code]):
+        if all(feat.next_choice is True for feat in sessions[self.code]):
             outcome = "All players accepted, you must do the dare!"
-        elif all(feat.next_choice is False for feat in active_games[self.code]):
+        elif all(feat.next_choice is False for feat in sessions[self.code]):
             outcome = "All players refused, dares are skipped!"
         elif self.next_choice is False:
             outcome = "You refused, all players skip the dares!"
@@ -143,13 +165,39 @@ class GameFeature(entrance.ConfiguredFeature):
         await self.ws_handler.notify(**result)
 
     def close(self):
-        if self.code:
-            active_games[self.code].remove(self)
-            if len(active_games[self.code]) == 0:
-                active_games.pop(self.code)
+        if self.player_state:
+            self.player_state.feature = None
 
 
-active_games: Dict[str, List[GameFeature]] = defaultdict(list)
+class Choice(enum.Enum):
+    ACCEPT = enum.auto()
+    REFUSE = enum.auto()
+
+
+@dataclass
+class PlayerGameState:
+    dares: List[str]
+    remaining_skips: int
+    next_dare_idx: int = 0
+    next_dare_choice: Optional[Choice] = None
+
+
+@dataclass
+class PlayerState:
+    feature: Optional[GameFeature]
+    submitted_dares: Sequence[str] = ()
+    game_state: Optional[PlayerGameState] = None
+
+
+@dataclass
+class SessionState:
+    code: str
+    rounds: int
+    skips: int
+    players: List[PlayerState]
+
+
+sessions: Dict[str, SessionState] = dict()
 
 
 # ------------------------------------------------------------------------------
@@ -185,8 +233,8 @@ def start(config):
     # Static file handling
     static_dir = SVR_DIR / start_cfg["static_dir"]
 
-    @app.route("/")
-    async def home_page(request: Request):
+    @app.route("/<code:strorempty>")
+    async def home_page(request: Request, code: Optional[str]):
         return await sanic.response.file(
             str(static_dir / "index.html"), headers=common_header
         )

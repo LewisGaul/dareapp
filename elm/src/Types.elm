@@ -83,4 +83,5 @@ type Msg
     | EntryPageMsg EntryPage.Msg
     | GameplayPageMsg GameplayPage.Msg
       -- Change phase
-    | GameReadyNotification (RpcData ( String, Int, Options ))
+    | StartEntryPhaseNotification (RpcData ( String, Int, Options ))
+    | StartGameplayPhaseNotification (RpcData Options)

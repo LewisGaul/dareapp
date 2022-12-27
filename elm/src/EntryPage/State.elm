@@ -7,18 +7,19 @@ import EntryPage.Comms as Comms
 import EntryPage.Types exposing (Model, Msg(..))
 import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
-import Types exposing (GlobalData)
 import Utils.Inject as Inject
+import Utils.Types exposing (Options)
 
 
 
 -- INITIAL STATE
 
 
-initState : GlobalData -> Model
-initState globalData =
+initState : Options -> Model
+initState options =
     { sendPort = Comms.entryPageSend
-    , inputs = Array.initialize globalData.options.rounds (always "")
+    , inputs = Array.initialize options.rounds (always "")
+    , waitingState = False
     }
 
 
@@ -32,41 +33,27 @@ update msg model =
         Error error ->
             Inject.send (Inject.Error "entry page" error) model
 
-        DareEntry int string ->
-            pure model
+        DareEntry idx text ->
+            pure { model | inputs = Array.set idx text model.inputs }
 
-        EndSetupPhase ->
-            pure model
+        SubmitDares ->
+            if List.any String.isEmpty (Array.toList model.inputs) then
+                update (Error "Enter something in each input box") model
+
+            else
+                Channel.sendRpc
+                    model
+                    (Request.new "submit_dares"
+                        |> Request.addStrings "dares" (Array.toList model.inputs)
+                    )
 
         SubmitDaresResult result ->
-            pure model
+            case result of
+                Success () ->
+                    pure { model | waitingState = True }
 
+                Failure error ->
+                    update (Error error) model
 
-
---updateXXX : Msg -> Model -> ( Model, Cmd Msg )
---updateXXX msg model =
---    case msg of
---        DareEntry idx text ->
---            pure { model | inputs = Array.set idx text model.inputs }
---
---        EndSetupPhase ->
---            Channel.sendRpc
---                model
---                (Request.new "submit_dares"
---                    |> Request.addString "code" model.globalData.sessionCode
---                    |> Request.addStrings "dares" (Array.toList model.inputs)
---                )
---
---        SubmitDaresResult result ->
---            case result of
---                Failure error ->
---                    -- TODO: handle error
---                    --update (Error error) model
---                    pure model
---
---                _ ->
---                    pure model
---
---        Error error ->
---            -- TODO
---            pure model
+                _ ->
+                    pure model

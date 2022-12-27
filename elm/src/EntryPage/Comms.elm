@@ -7,10 +7,7 @@ port module EntryPage.Comms exposing
 import EnTrance.Channel as Channel
 import EntryPage.Types exposing (Msg(..))
 import Json.Decode as Decode exposing (Decoder)
-
-
-
--- Ports
+import Utils.Misc exposing (decodeRequest)
 
 
 port entryPageSend : Channel.SendPort msg
@@ -30,4 +27,5 @@ subscriptions =
 -}
 decoders : List (Decoder Msg)
 decoders =
-    []
+    [ decodeRequest "submit_dares" (Decode.map (\_ -> ()) Decode.string) SubmitDaresResult
+    ]

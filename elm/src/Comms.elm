@@ -48,11 +48,13 @@ subscriptions =
 
 decoders : List (Decoder Msg)
 decoders =
-    [ decodeRequest "game_ready" decodeCodeAndOptions GameReadyNotification ]
+    [ decodeRequest "start_entry_phase" decodeCodePlayerAndOptions StartEntryPhaseNotification
+    , decodeRequest "start_game_phase" decodeOptions StartGameplayPhaseNotification
+    ]
 
 
-decodeCodeAndOptions : Decoder ( String, Int, Options )
-decodeCodeAndOptions =
+decodeCodePlayerAndOptions : Decoder ( String, Int, Options )
+decodeCodePlayerAndOptions =
     Decode.map3 (\x y z -> ( x, y, z ))
         (Decode.field "code" Decode.string)
         (Decode.field "player_id" Decode.int)

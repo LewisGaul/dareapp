@@ -12,6 +12,7 @@ import EnTrance.Types exposing (RpcData)
 type alias Model =
     { sendPort : SendPort Msg
     , inputs : Array String
+    , waitingState : Bool
     }
 
 
@@ -22,5 +23,5 @@ type alias Model =
 type Msg
     = Error String
     | DareEntry Int String
-    | EndSetupPhase
+    | SubmitDares
     | SubmitDaresResult (RpcData ())

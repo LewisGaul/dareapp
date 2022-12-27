@@ -1,4 +1,4 @@
-module State exposing (defaultOptions, init, update)
+module State exposing (init, update)
 
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
@@ -26,16 +26,10 @@ import Url.Parser
 import UrlParser exposing (urlParser)
 import Utils.Inject as Inject
 import Utils.Toast as Toast
-import Utils.Types exposing (Options)
 
 
 
 -- INITIAL STATE
-
-
-defaultOptions : Options
-defaultOptions =
-    { players = 2, rounds = 10, skips = 5 }
 
 
 {-| There aren't any initial commands, because we defer most initial
@@ -153,7 +147,7 @@ update msg model =
                     update (msgInUnexpectedPhaseError "gameplay" model.phaseData) model
 
         -- Messages changing the phase
-        GameReadyNotification result ->
+        StartEntryPhaseNotification result ->
             case result of
                 Failure error ->
                     update (Error error) model
@@ -161,7 +155,7 @@ update msg model =
                 Success ( code, playerId, options ) ->
                     let
                         newPhase =
-                            GameplayPhase (GameplayPage.initState playerId options)
+                            EntryPhase (EntryPage.initState options)
                     in
                     ( { model | phaseData = newPhase }
                     , Nav.pushUrl
@@ -171,6 +165,21 @@ update msg model =
                             [ Url.Builder.int "p" playerId ]
                         )
                     )
+
+                _ ->
+                    pure model
+
+        StartGameplayPhaseNotification result ->
+            case result of
+                Failure error ->
+                    update (Error error) model
+
+                Success options ->
+                    let
+                        newPhase =
+                            GameplayPhase (GameplayPage.initState options)
+                    in
+                    pure { model | phaseData = newPhase }
 
                 _ ->
                     pure model

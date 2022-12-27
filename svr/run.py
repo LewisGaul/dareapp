@@ -45,8 +45,8 @@ class GameFeature(entrance.ConfiguredFeature):
     }
     notifications: List[Optional[str]] = [
         None,
-        "game_ready",
-        "send_dares",
+        "start_entry_phase",
+        "start_game_phase",
         "send_outcome",
     ]
 
@@ -94,15 +94,15 @@ class GameFeature(entrance.ConfiguredFeature):
         if len(sess.players) == 2:
             for player in sessions[self.code].players:
                 if player.feature is not None:
-                    await player.feature.game_ready()
+                    await player.feature.start_entry_phase()
         else:
             return self._rpc_success(self.code)
 
-    async def game_ready(self):
+    async def start_entry_phase(self):
         sess = sessions[self.code]
         result = {
             **self._result(
-                "game_ready",
+                "start_entry_phase",
                 result={
                     "code": self.code,
                     "player_id": self.player_state.id,
@@ -123,6 +123,7 @@ class GameFeature(entrance.ConfiguredFeature):
         sess = sessions[self.code]
         if all(x.submitted_dares for x in sess.players):
             # All players have submitted dares, so shuffle and share them out.
+            logger.info("Sharing out dares in session %s", self.code)
             assert all(len(x.submitted_dares) == sess.rounds for x in sess.players)
             all_dares = [d for player in sess.players for d in player.submitted_dares]
             random.shuffle(all_dares)
@@ -134,11 +135,21 @@ class GameFeature(entrance.ConfiguredFeature):
                 if player.feature is None:
                     logger.debug("Player not connected to session %s", self.code)
                     continue
-                await player.feature.send_dares(allocated_dares)
+                await player.feature.start_game_phase(allocated_dares)
+        else:
+            return self._rpc_success()
 
-    async def send_dares(self, dares: List[str]):
+    async def start_game_phase(self, dares: List[str]):
+        sess = sessions[self.code]
         result = {
-            **self._result("send_dares", result=dares),
+            **self._result(
+                "start_game_phase",
+                result={
+                    "players": 2,
+                    "rounds": sess.rounds,
+                    "skips": sess.skips,
+                },
+            ),
             "channel": "app",
             "target": "defaultTarget",
             "userid": "default",

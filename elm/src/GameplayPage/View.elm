@@ -3,12 +3,14 @@ module GameplayPage.View exposing (view)
 import Bootstrap.Button as Button exposing (button, onClick)
 import Bootstrap.Grid as Grid
 import GameplayPage.Types exposing (Model, Msg(..), Transition(..))
-import Html exposing (Html, div, text)
+import Html exposing (Html, div, h2, text)
 
 
 view : Model -> Html Msg
 view model =
-    div [] []
+    div []
+        [ h2 [] [ text "Game time!" ]
+        ]
 
 
 

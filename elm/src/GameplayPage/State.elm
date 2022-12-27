@@ -11,10 +11,9 @@ import Utils.Types exposing (Options)
 -- INITIAL STATE
 
 
-initState : Int -> Options -> Model
-initState playerId options =
+initState : Options -> Model
+initState options =
     { sendPort = Comms.gameplayPageSend
-    , playerId = playerId
     , currentDare = Nothing
     , round = 0
     , remainingSkips = options.skips

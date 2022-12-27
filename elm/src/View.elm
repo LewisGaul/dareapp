@@ -4,7 +4,7 @@ import Bootstrap.Grid as Grid
 import Browser exposing (Document)
 import EntryPage.View as EntryPage
 import GameplayPage.View as GameplayPage
-import Html exposing (Html, div, h2, text)
+import Html exposing (Html)
 import JoinPage.View as JoinPage
 import Toasty
 import Toasty.Defaults
@@ -41,7 +41,7 @@ viewPhase phase =
             JoinPage.view p |> Html.map JoinPageMsg
 
         EntryPhase p ->
-            EntryPage.view p |> List.map (Html.map EntryPageMsg) |> div []
+            EntryPage.view p |> Html.map EntryPageMsg
 
         GameplayPhase p ->
             GameplayPage.view p |> Html.map GameplayPageMsg

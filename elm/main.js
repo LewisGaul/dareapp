@@ -7,7 +7,7 @@ const url_port = dev_mode ? 5000 : location.port;
 const ws_url = `${ws_proto}//${location.hostname}:${url_port}/ws`;
 
 // Initialise the Elm app
-import { Elm } from './Main.elm';
+import { Elm } from './src/Main.elm';
 const basePath = "/";
 const app = Elm.Main.init({
   node: document.querySelector('main'),

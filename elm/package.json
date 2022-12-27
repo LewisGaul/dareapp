@@ -17,7 +17,7 @@
     "sass": "^1.26.9"
   },
   "scripts": {
-    "dev": "parcel src/index.html",
-    "build": "parcel build src/index.html --no-content-hash --no-minify --public-url ./"
+    "dev": "parcel index.html",
+    "build": "parcel build index.html --no-content-hash --no-minify --public-url ./"
   }
 }

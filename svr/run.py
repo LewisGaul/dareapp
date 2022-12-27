@@ -41,13 +41,15 @@ class GameFeature(entrance.ConfiguredFeature):
     requests: Dict[str, List[str]] = {
         "join_game": ["code", "?rounds", "?skips"],
         "submit_dares": ["dares"],
+        "next_round": ["__req__"],
         "decision": ["accept"],
     }
     notifications: List[Optional[str]] = [
         None,
         "start_entry_phase",
         "start_game_phase",
-        "send_outcome",
+        "next_dare",
+        "outcome",
     ]
 
     def __init__(self, *args, **kwargs):
@@ -55,6 +57,10 @@ class GameFeature(entrance.ConfiguredFeature):
         self.code: Optional[str] = None
         self.player_state: Optional[PlayerState] = None
         self.next_choice: Optional[bool] = None
+        self.channels = {
+            "app": 1,
+            "gameplay_page": 3,  # Not sure this always holds....
+        }
 
     async def do_join_game(
         self, code: str, rounds: Optional[int], skips: Optional[int]
@@ -92,9 +98,7 @@ class GameFeature(entrance.ConfiguredFeature):
         sess.players.append(self.player_state)
         pprint(sessions)
         if len(sess.players) == 2:
-            for player in sessions[self.code].players:
-                if player.feature is not None:
-                    await player.feature.start_entry_phase()
+            await sess.start_entry_phase()
         else:
             return self._rpc_success(self.code)
 
@@ -114,7 +118,7 @@ class GameFeature(entrance.ConfiguredFeature):
             "channel": "app",
             "target": "defaultTarget",
             "userid": "default",
-            "id": 1,
+            "id": self.channels["app"],
         }
         await self.ws_handler.notify(**result)
 
@@ -123,37 +127,48 @@ class GameFeature(entrance.ConfiguredFeature):
         sess = sessions[self.code]
         if all(x.submitted_dares for x in sess.players):
             # All players have submitted dares, so shuffle and share them out.
-            logger.info("Sharing out dares in session %s", self.code)
-            assert all(len(x.submitted_dares) == sess.rounds for x in sess.players)
-            all_dares = [d for player in sess.players for d in player.submitted_dares]
-            random.shuffle(all_dares)
-            for i, player in enumerate(sess.players):
-                allocated_dares = all_dares[i * sess.rounds : (i + 1) * sess.rounds]
-                player.game_state = PlayerGameState(
-                    allocated_dares, remaining_skips=sess.skips
-                )
-                if player.feature is None:
-                    logger.debug("Player not connected to session %s", self.code)
-                    continue
-                await player.feature.start_game_phase(allocated_dares)
+            await sess.share_out_dares_and_start_game()
         else:
             return self._rpc_success()
 
-    async def start_game_phase(self, dares: List[str]):
-        sess = sessions[self.code]
+    async def start_game_phase(self, rounds: int, skips: int):
         result = {
             **self._result(
                 "start_game_phase",
                 result={
                     "players": 2,
-                    "rounds": sess.rounds,
-                    "skips": sess.skips,
+                    "rounds": rounds,
+                    "skips": skips,
                 },
             ),
             "channel": "app",
             "target": "defaultTarget",
             "userid": "default",
             "id": 1,
+        }
+        await self.ws_handler.notify(**result)
+
+    async def do_next_round(self, __req__):
+        # Snoop the channel ID so that we can send notifications...
+        self.channels["gameplay_page"] = __req__["id"]
+        self.player_state.game_state.waiting = True
+        sess = sessions[self.code]
+        if all(p.game_state.waiting for p in sess.players):
+            await sess.send_next_round_of_dares()
+
+    async def send_next_dare(self, round: int, dare: str):
+        result = {
+            **self._result(
+                "next_dare",
+                result={
+                    "round": round,
+                    "dare": dare,
+                },
+            ),
+            "channel": "gameplay_page",
+            "target": "defaultTarget",
+            "userid": "default",
+            "id": self.channels["gameplay_page"],
         }
         await self.ws_handler.notify(**result)
 
@@ -177,7 +192,7 @@ class GameFeature(entrance.ConfiguredFeature):
         else:
             outcome = "Another player refused, all players skip the dares!"
         result = {
-            **self._result("send_outcome", result=outcome),
+            **self._result("outcome", result=outcome),
             "channel": "app",
             "target": "defaultTarget",
             "userid": "default",
@@ -203,8 +218,8 @@ class Choice(enum.Enum):
 class PlayerGameState:
     dares: List[str]
     remaining_skips: int
-    next_dare_idx: int = 0
     next_dare_choice: Optional[Choice] = None
+    waiting: bool = False
 
 
 @dataclass
@@ -216,11 +231,59 @@ class PlayerState:
 
 
 @dataclass
+class SessionGameState:
+    next_dare_idx: int = 0
+
+
+@dataclass
 class SessionState:
     code: str
     rounds: int
     skips: int
     players: List[PlayerState]
+    game_state: Optional[SessionGameState] = None
+
+    async def start_entry_phase(self):
+        for player in self.players:
+            if player.feature is not None:
+                await player.feature.start_entry_phase()
+
+    async def share_out_dares_and_start_game(self):
+        self.game_state = SessionGameState()
+        logger.info("Sharing out dares in session %s", self.code)
+        assert all(len(x.submitted_dares) == self.rounds for x in self.players)
+        all_dares = [d for player in self.players for d in player.submitted_dares]
+        random.shuffle(all_dares)
+        for i, player in enumerate(self.players):
+            allocated_dares = all_dares[i * self.rounds : (i + 1) * self.rounds]
+            player.game_state = PlayerGameState(
+                allocated_dares, remaining_skips=self.skips
+            )
+            if player.feature is None:
+                logger.debug(
+                    "Player %d not connected to session %s", player.id, self.code
+                )
+                continue
+            await player.feature.start_game_phase(self.rounds, self.skips)
+
+    async def send_next_round_of_dares(self):
+        logger.info(
+            "Sending round %s of dares in session %s",
+            self.game_state.next_dare_idx + 1,
+            self.code,
+        )
+        assert self.game_state.next_dare_idx < self.rounds
+        for player in self.players:
+            assert player.game_state is not None
+            if player.feature is None:
+                logger.debug(
+                    "Player %d not connected to session %s", player.id, self.code
+                )
+                continue
+            await player.feature.send_next_dare(
+                self.game_state.next_dare_idx + 1,
+                player.game_state.dares[self.game_state.next_dare_idx],
+            )
 
 
 sessions: Dict[str, SessionState] = dict()

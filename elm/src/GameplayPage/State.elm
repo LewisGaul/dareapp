@@ -1,7 +1,11 @@
 module GameplayPage.State exposing (initState, update)
 
+import Array
+import EnTrance.Channel as Channel
+import EnTrance.Request as Request
 import GameplayPage.Comms as Comms
-import GameplayPage.Types exposing (Model, Msg(..), Transition(..))
+import GameplayPage.Types exposing (Model, Msg(..), Transition(..), roundFromTransition)
+import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
 import Utils.Inject as Inject
 import Utils.Types exposing (Options)
@@ -14,8 +18,7 @@ import Utils.Types exposing (Options)
 initState : Options -> Model
 initState options =
     { sendPort = Comms.gameplayPageSend
-    , currentDare = Nothing
-    , round = 0
+    , options = options
     , remainingSkips = options.skips
     , transition = Ready
     }
@@ -38,7 +41,24 @@ update msg model =
             pure model
 
         NextRound ->
-            pure model
+            let
+                round =
+                    roundFromTransition model.transition model.options.rounds
+            in
+            Channel.sendRpc
+                { model | transition = LoadingRound round }
+                (Request.new "next_round")
+
+        NextRoundResult result ->
+            case result of
+                Success dareState ->
+                    pure { model | transition = Decision dareState }
+
+                Failure error ->
+                    update (Error error) model
+
+                _ ->
+                    pure model
 
 
 

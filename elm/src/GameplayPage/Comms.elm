@@ -5,8 +5,9 @@ port module GameplayPage.Comms exposing
     )
 
 import EnTrance.Channel as Channel
-import GameplayPage.Types exposing (Msg(..))
-import Json.Decode exposing (Decoder)
+import GameplayPage.Types exposing (DareState, Msg(..))
+import Json.Decode as Decode exposing (Decoder)
+import Utils.Misc exposing (decodeRequest)
 
 
 
@@ -30,4 +31,12 @@ subscriptions =
 -}
 decoders : List (Decoder Msg)
 decoders =
-    []
+    [ decodeRequest "next_dare" decodeDareState NextRoundResult
+    ]
+
+
+decodeDareState : Decoder DareState
+decodeDareState =
+    Decode.map2 DareState
+        (Decode.field "round" Decode.int)
+        (Decode.field "dare" Decode.string)

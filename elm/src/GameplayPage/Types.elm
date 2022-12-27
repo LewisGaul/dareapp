@@ -1,7 +1,8 @@
-module GameplayPage.Types exposing (Model, Msg(..), Transition(..))
+module GameplayPage.Types exposing (DareState, Model, Msg(..), Transition(..), roundFromTransition)
 
 import EnTrance.Channel exposing (SendPort)
 import EnTrance.Types exposing (RpcData)
+import Utils.Types exposing (Options)
 
 
 
@@ -10,19 +11,47 @@ import EnTrance.Types exposing (RpcData)
 
 type alias Model =
     { sendPort : SendPort Msg
-    , currentDare : Maybe String
-    , round : Int
+    , options : Options
     , remainingSkips : Int
     , transition : Transition
     }
 
 
+type alias DareState =
+    { round : Int
+    , dare : String
+    }
+
+
 type Transition
     = Ready
-    | Decision
-    | Waiting
-    | Outcome String
+    | LoadingRound Int
+    | Decision DareState
+    | Waiting DareState String
+    | Outcome DareState String
     | Finished
+
+
+roundFromTransition : Transition -> Int -> Int
+roundFromTransition transition total =
+    case transition of
+        Ready ->
+            0
+
+        LoadingRound r ->
+            r
+
+        Decision dareState ->
+            dareState.round
+
+        Waiting dareState _ ->
+            dareState.round
+
+        Outcome dareState _ ->
+            dareState.round
+
+        Finished ->
+            total
 
 
 
@@ -34,3 +63,4 @@ type Msg
     | MakeDecision Bool
     | ReceivedOutcome (RpcData String)
     | NextRound
+    | NextRoundResult (RpcData DareState)

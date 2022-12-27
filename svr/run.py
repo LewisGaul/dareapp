@@ -369,11 +369,16 @@ def start(config):
     # Static file handling
     static_dir = SVR_DIR / start_cfg["static_dir"]
 
-    @app.route("/<code:strorempty>")
-    async def home_page(request: Request, code: Optional[str]):
-        return await sanic.response.file(
-            str(static_dir / "index.html"), headers=common_header
-        )
+    @app.route(r"/<code_or_file:strorempty>")
+    async def home_page(request: Request, code_or_file: Optional[str]):
+        if (static_dir / code_or_file).is_file():
+            return await sanic.response.file(
+                str(static_dir / code_or_file), headers=common_header
+            )
+        else:
+            return await sanic.response.file(
+                str(static_dir / "index.html"), headers=common_header
+            )
 
     # This must come after the dynamically handled routes.
     app.static("/", str(static_dir))

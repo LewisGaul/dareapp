@@ -1,12 +1,6 @@
-module Utils exposing (Key(..), keyDecode, toAlphaNum, viewError)
+module Utils.Keypress exposing (Key(..), keyDecode)
 
-import Html exposing (Html, div, text)
-import Html.Attributes exposing (class)
 import Json.Decode as Decode exposing (Decoder)
-
-
-
--- Key presses
 
 
 type Key
@@ -77,30 +71,3 @@ keysMatch k1 k2 =
 
         Other ->
             False
-
-
-
--- Misc
-
-
-toAlphaNum : String -> String
-toAlphaNum string =
-    let
-        convChar char =
-            if Char.isAlphaNum char then
-                char
-
-            else
-                '-'
-    in
-    List.map convChar (String.toList string) |> String.fromList
-
-
-viewError : Maybe String -> Html msg
-viewError error =
-    case error of
-        Just e ->
-            div [ class "error" ] [ text e ]
-
-        Nothing ->
-            div [] []

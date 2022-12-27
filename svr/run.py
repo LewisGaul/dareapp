@@ -169,6 +169,10 @@ class GameFeature(entrance.ConfiguredFeature):
             self.player_state.feature = None
 
 
+# ------------------------------------------------------------------------------
+# Session data management
+
+
 class Choice(enum.Enum):
     ACCEPT = enum.auto()
     REFUSE = enum.auto()

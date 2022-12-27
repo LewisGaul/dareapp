@@ -15,7 +15,7 @@ import Types
         , Phase(..)
         , WaitingData
         )
-import Utils exposing (viewError)
+import Utils.ViewHelper exposing (viewError)
 
 
 {-| Top-level view

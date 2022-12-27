@@ -32,6 +32,7 @@ subscriptions =
 decoders : List (Decoder Msg)
 decoders =
     [ decodeRequest "next_dare" decodeDareState NextRoundResult
+    , decodeRequest "outcome" Decode.string ReceivedOutcome
     ]
 
 

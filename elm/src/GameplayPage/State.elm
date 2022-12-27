@@ -1,6 +1,5 @@
 module GameplayPage.State exposing (initState, update)
 
-import Array
 import EnTrance.Channel as Channel
 import EnTrance.Request as Request
 import GameplayPage.Comms as Comms
@@ -34,20 +33,18 @@ update msg model =
         Error error ->
             Inject.send (Inject.Error "gameplay page" error) model
 
-        MakeDecision accepted ->
-            pure model
-
-        ReceivedOutcome result ->
-            pure model
-
         NextRound ->
             let
                 round =
                     roundFromTransition model.transition model.options.rounds
             in
-            Channel.sendRpc
-                { model | transition = LoadingRound round }
-                (Request.new "next_round")
+            if round == model.options.rounds then
+                pure { model | transition = Finished }
+
+            else
+                Channel.sendRpc
+                    { model | transition = AwaitingNextRound round }
+                    (Request.new "next_round")
 
         NextRoundResult result ->
             case result of
@@ -60,47 +57,48 @@ update msg model =
                 _ ->
                     pure model
 
+        MakeDecision accepted ->
+            let
+                remainingSkips old =
+                    if accepted then
+                        old
+
+                    else
+                        old - 1
+            in
+            case model.transition of
+                Decision dareState ->
+                    Channel.sendRpc
+                        { model
+                            | transition = AwaitingDecision dareState accepted
+                            , remainingSkips = remainingSkips model.remainingSkips
+                        }
+                        (Request.new "decision"
+                            |> Request.addBool "accept" accepted
+                        )
+
+                _ ->
+                    update (Error "Got decision in unexpected transition phase") model
+
+        ReceivedOutcome result ->
+            case ( result, model.transition ) of
+                ( Success message, AwaitingDecision dareState _ ) ->
+                    pure { model | transition = Outcome dareState message }
+
+                ( Failure error, _ ) ->
+                    update (Error error) model
+
+                ( Success _, _ ) ->
+                    update (Error "Got outcome in unexpected transition phase") model
+
+                _ ->
+                    pure model
+
 
 
 --updateXXX : Msg -> Model -> ( Model, Cmd Msg )
 --updateXXX msg model =
 --    case msg of
---        NextRound ->
---            case model.transition of
---                Ready ->
---                    pure { model | transition = Decision }
---
---                Outcome _ ->
---                    pure { model | transition = Decision, round = model.round + 1 }
---
---                _ ->
---                    -- TODO: Error
---                    pure model
---
---        MakeDecision accepted ->
---            let
---                remainingSkips old =
---                    if accepted then
---                        old
---
---                    else
---                        old - 1
---            in
---            case model.transition of
---                Decision ->
---                    Channel.sendRpc
---                        { model
---                            | transition = Waiting
---                            , remainingSkips = remainingSkips model.remainingSkips
---                        }
---                        (Request.new "decision"
---                            |> Request.addBool "accept" accepted
---                        )
---
---                _ ->
---                    -- TODO: Error
---                    pure model
---
 --        ReceivedOutcome result ->
 --            case result of
 --                Success outcome ->

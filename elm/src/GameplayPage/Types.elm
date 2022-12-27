@@ -25,9 +25,9 @@ type alias DareState =
 
 type Transition
     = Ready
-    | LoadingRound Int
+    | AwaitingNextRound Int
     | Decision DareState
-    | Waiting DareState String
+    | AwaitingDecision DareState Bool
     | Outcome DareState String
     | Finished
 
@@ -38,13 +38,13 @@ roundFromTransition transition total =
         Ready ->
             0
 
-        LoadingRound r ->
+        AwaitingNextRound r ->
             r
 
         Decision dareState ->
             dareState.round
 
-        Waiting dareState _ ->
+        AwaitingDecision dareState _ ->
             dareState.round
 
         Outcome dareState _ ->

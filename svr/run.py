@@ -42,7 +42,7 @@ class GameFeature(entrance.ConfiguredFeature):
         "join_game": ["code", "?rounds", "?skips"],
         "submit_dares": ["dares"],
         "next_round": ["__req__"],
-        "decision": ["accept"],
+        "decision": ["accept", "__req__"],
     }
     notifications: List[Optional[str]] = [
         None,
@@ -57,10 +57,7 @@ class GameFeature(entrance.ConfiguredFeature):
         self.code: Optional[str] = None
         self.player_state: Optional[PlayerState] = None
         self.next_choice: Optional[bool] = None
-        self.channels = {
-            "app": 1,
-            "gameplay_page": 3,  # Not sure this always holds....
-        }
+        self._channel_id = 1
 
     async def do_join_game(
         self, code: str, rounds: Optional[int], skips: Optional[int]
@@ -118,7 +115,7 @@ class GameFeature(entrance.ConfiguredFeature):
             "channel": "app",
             "target": "defaultTarget",
             "userid": "default",
-            "id": self.channels["app"],
+            "id": 1,
         }
         await self.ws_handler.notify(**result)
 
@@ -148,9 +145,9 @@ class GameFeature(entrance.ConfiguredFeature):
         }
         await self.ws_handler.notify(**result)
 
-    async def do_next_round(self, __req__):
+    async def do_next_round(self, req):
         # Snoop the channel ID so that we can send notifications...
-        self.channels["gameplay_page"] = __req__["id"]
+        self._get_channel_id(req)
         self.player_state.game_state.waiting = True
         sess = sessions[self.code]
         if all(p.game_state.waiting for p in sess.players):
@@ -168,41 +165,38 @@ class GameFeature(entrance.ConfiguredFeature):
             "channel": "gameplay_page",
             "target": "defaultTarget",
             "userid": "default",
-            "id": self.channels["gameplay_page"],
+            "id": self._channel_id,
         }
         await self.ws_handler.notify(**result)
 
-    async def do_decision(self, accept: bool):
-        self.next_choice = accept
+    async def do_decision(self, accept: bool, req):
+        # Snoop the channel ID so that we can send notifications...
+        self._get_channel_id(req)
+        self.player_state.game_state.next_dare_choice = (
+            Choice.ACCEPT if accept else Choice.REFUSE
+        )
         sess = sessions[self.code]
-        if all(player.feature.next_choice is not None for player in sess.players):
-            # All players have chosen, so send the outcomes.
-            for player in sess.players:
-                await player.feature.send_outcome()
-            for player in sess.players:
-                player.feature.next_choice = None
+        if all(
+            player.game_state.next_dare_choice is not None for player in sess.players
+        ):
+            await sess.send_round_outcomes()
 
-    async def send_outcome(self):
-        if all(feat.next_choice is True for feat in sessions[self.code]):
-            outcome = "All players accepted, you must do the dare!"
-        elif all(feat.next_choice is False for feat in sessions[self.code]):
-            outcome = "All players refused, dares are skipped!"
-        elif self.next_choice is False:
-            outcome = "You refused, all players skip the dares!"
-        else:
-            outcome = "Another player refused, all players skip the dares!"
+    async def send_outcome(self, message: str):
         result = {
-            **self._result("outcome", result=outcome),
-            "channel": "app",
+            **self._result("outcome", result=message),
+            "channel": "gameplay_page",
             "target": "defaultTarget",
             "userid": "default",
-            "id": 1,
+            "id": self._channel_id,
         }
         await self.ws_handler.notify(**result)
 
     def close(self):
         if self.player_state:
             self.player_state.feature = None
+
+    def _get_channel_id(self, req):
+        self._channel_id = req["id"]
 
 
 # ------------------------------------------------------------------------------
@@ -280,10 +274,60 @@ class SessionState:
                     "Player %d not connected to session %s", player.id, self.code
                 )
                 continue
+            player.game_state.waiting = False
             await player.feature.send_next_dare(
                 self.game_state.next_dare_idx + 1,
                 player.game_state.dares[self.game_state.next_dare_idx],
             )
+
+    async def send_round_outcomes(self):
+        logger.info(
+            "Sending outcomes for round %s in session %s",
+            self.game_state.next_dare_idx + 1,
+            self.code,
+        )
+        assert self.game_state.next_dare_idx < self.rounds
+        for player in self.players:
+            assert player.game_state is not None
+            if player.feature is None:
+                logger.debug(
+                    "Player %d not connected to session %s", player.id, self.code
+                )
+                continue
+            player.game_state.waiting = False
+            # Send the appropriate outcome message.
+            opponent = [p for p in self.players if p is not player][0]
+            opponent_dare = opponent.game_state.dares[self.game_state.next_dare_idx]
+            if all(
+                p.game_state.next_dare_choice is Choice.ACCEPT
+                for p in [player, opponent]
+            ):
+                outcome = (
+                    "All players accepted, you must do your dare and your "
+                    f"opponent must do: {opponent_dare!r}"
+                )
+            elif all(
+                p.game_state.next_dare_choice is Choice.REFUSE
+                for p in [player, opponent]
+            ):
+                outcome = (
+                    f"All players refused (opponent had {opponent_dare!r}), "
+                    "dares are skipped"
+                )
+            elif player.game_state.next_dare_choice is Choice.REFUSE:
+                outcome = (
+                    f"You refused, your opponent may skip their dare "
+                    f"{opponent_dare!r}"
+                )
+            else:
+                outcome = (
+                    f"Opponent refused to do {opponent_dare!r}, you may skip "
+                    "your dare"
+                )
+            await player.feature.send_outcome(outcome)
+        for player in self.players:
+            player.game_state.next_dare_choice = None
+        self.game_state.next_dare_idx += 1
 
 
 sessions: Dict[str, SessionState] = dict()

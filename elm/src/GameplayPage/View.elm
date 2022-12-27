@@ -16,14 +16,22 @@ view model =
             Ready ->
                 viewStart
 
-            LoadingRound _ ->
-                viewLoading
+            AwaitingNextRound _ ->
+                viewAwaitingFirstRound
 
             Decision dareState ->
                 viewDecision dareState.dare (model.remainingSkips > 0)
 
-            Waiting dareState message ->
-                viewDare dareState.dare (message ++ ", waiting for other players to decide...")
+            AwaitingDecision dareState accepted ->
+                let
+                    message =
+                        if accepted then
+                            "accepted"
+
+                        else
+                            "refused"
+                in
+                viewDare dareState.dare ("You " ++ message ++ ", waiting for other players to decide...")
 
             Outcome dareState message ->
                 viewOutcome dareState.dare message
@@ -52,9 +60,9 @@ viewStart =
     button [ Button.primary, onClick NextRound ] [ text "Start" ]
 
 
-viewLoading : Html Msg
-viewLoading =
-    text "Loading..."
+viewAwaitingFirstRound : Html Msg
+viewAwaitingFirstRound =
+    text "Waiting for other players..."
 
 
 viewDecision : String -> Bool -> Html Msg

@@ -5,8 +5,12 @@ port module JoinPage.Comms exposing
     )
 
 import EnTrance.Channel as Channel
+import EnTrance.Feature.Gen as Gen
+import EnTrance.Types exposing (RpcData)
 import JoinPage.Types exposing (Model, Msg(..))
-import Json.Decode exposing (Decoder)
+import Json.Decode as Decode exposing (Decoder)
+import Utils.Misc exposing (decodeRequest)
+import Utils.Types exposing (Options)
 
 
 port joinPageSend : Channel.SendPort msg
@@ -26,4 +30,5 @@ subscriptions =
 -}
 decoders : List (Decoder Msg)
 decoders =
-    []
+    [ decodeRequest "join_game" Decode.string JoinResult
+    ]

@@ -1,25 +1,23 @@
 module GameplayPage.State exposing (initState, update)
 
-import EnTrance.Channel as Channel
-import EnTrance.Request as Request
 import GameplayPage.Comms as Comms
 import GameplayPage.Types exposing (Model, Msg(..), Transition(..))
-import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
-import Types exposing (GlobalData, Options)
 import Utils.Inject as Inject
+import Utils.Types exposing (Options)
 
 
 
 -- INITIAL STATE
 
 
-initState : List String -> GlobalData -> Model
-initState dares globalData =
+initState : Int -> Options -> Model
+initState playerId options =
     { sendPort = Comms.gameplayPageSend
-    , dares = dares
+    , playerId = playerId
+    , currentDare = Nothing
     , round = 0
-    , remainingSkips = globalData.options.skips
+    , remainingSkips = options.skips
     , transition = Ready
     }
 

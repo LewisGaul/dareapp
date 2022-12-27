@@ -5,7 +5,6 @@ port module EntryPage.Comms exposing
     )
 
 import EnTrance.Channel as Channel
-import EnTrance.Feature.Gen as Gen
 import EntryPage.Types exposing (Msg(..))
 import Json.Decode as Decode exposing (Decoder)
 

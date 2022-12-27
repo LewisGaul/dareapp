@@ -7,7 +7,7 @@ import EntryPage.Comms as Comms
 import EntryPage.Types exposing (Model, Msg(..))
 import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
-import Types exposing (GlobalData, Options)
+import Types exposing (GlobalData)
 import Utils.Inject as Inject
 
 

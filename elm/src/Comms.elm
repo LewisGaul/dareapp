@@ -4,7 +4,11 @@ import EnTrance.Channel as Channel
 import EntryPage.Comms as EntryPage
 import GameplayPage.Comms as GameplayPage
 import JoinPage.Comms as JoinPage
+import Json.Decode as Decode exposing (Decoder)
 import Types exposing (GlobalData, Msg(..))
+import Utils.Inject as Inject
+import Utils.Misc exposing (decodeOptions, decodeRequest)
+import Utils.Types exposing (Options)
 
 
 
@@ -20,6 +24,9 @@ import Types exposing (GlobalData, Msg(..))
 port appSend : Channel.SendPort msg
 
 
+port appRecv : Channel.RecvPort msg
+
+
 port appIsUp : Channel.IsUpPort msg
 
 
@@ -31,7 +38,22 @@ subscriptions =
     Sub.batch
         [ appIsUp ChannelIsUp
         , errorRecv Error
+        , Inject.sub Injected
         , Sub.map JoinPageMsg JoinPage.subscriptions
         , Sub.map EntryPageMsg EntryPage.subscriptions
         , Sub.map GameplayPageMsg GameplayPage.subscriptions
+        , Channel.sub appRecv Error decoders
         ]
+
+
+decoders : List (Decoder Msg)
+decoders =
+    [ decodeRequest "game_ready" decodeCodeAndOptions GameReadyNotification ]
+
+
+decodeCodeAndOptions : Decoder ( String, Int, Options )
+decodeCodeAndOptions =
+    Decode.map3 (\x y z -> ( x, y, z ))
+        (Decode.field "code" Decode.string)
+        (Decode.field "player_id" Decode.int)
+        decodeOptions

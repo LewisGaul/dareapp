@@ -10,7 +10,8 @@ import EntryPage.Types as EntryPhase
 import GameplayPage.State as GameplayPage
 import GameplayPage.Types as GameplayPhase
 import JoinPage.State as JoinPage
-import JoinPage.Types as JoinPhase
+import JoinPage.Types as JoinPage
+import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
 import Toasty
 import Types
@@ -18,15 +19,16 @@ import Types
         ( GlobalData
         , Model
         , Msg(..)
-        , Options
         , Phase(..)
         , phaseToString
         )
 import Url
+import Url.Builder
 import Url.Parser
 import UrlParser exposing (urlParser)
 import Utils.Inject as Inject
 import Utils.Toast as Toast
+import Utils.Types exposing (Options)
 
 
 
@@ -76,8 +78,12 @@ update msg model =
             in
             if isUp then
                 case Url.Parser.parse urlParser model.url of
-                    Just globalData ->
-                        joinGame model globalData
+                    Just data ->
+                        update
+                            (JoinPageMsg <|
+                                JoinPage.Join data.sessionCode (Just data.options)
+                            )
+                            model
 
                     Nothing ->
                         pure model
@@ -104,15 +110,16 @@ update msg model =
         Error error ->
             pure { model | lastError = Just error }
 
-        Injected (Inject.Error subsys error) ->
-            let
-                errMsg =
-                    "[" ++ subsys ++ "] " ++ error
-            in
-            update (Error errMsg) model
-
         Injected (Inject.Toast toast) ->
             update (AddToast toast) model
+
+        Injected (Inject.Error subsys error) ->
+            update (Error <| "[" ++ subsys ++ "] " ++ error) model
+
+        Injected (Inject.SetUrlCode code) ->
+            ( model
+            , Nav.pushUrl model.navKey (Url.Builder.absolute [ code ] [])
+            )
 
         ToastyMsg innerMsg ->
             Toasty.update Toast.config ToastyMsg innerMsg model
@@ -149,8 +156,31 @@ update msg model =
                 _ ->
                     update (msgInUnexpectedPhaseError "gameplay" model.phaseData) model
 
+        -- Messages changing the phase
+        GameReadyNotification result ->
+            case result of
+                Failure error ->
+                    update (Error error) model
 
-mapJoinPhase : Model -> ( JoinPhase.Model, Cmd JoinPhase.Msg ) -> ( Model, Cmd Msg )
+                Success ( code, playerId, options ) ->
+                    let
+                        newPhase =
+                            GameplayPhase (GameplayPage.initState playerId options)
+                    in
+                    ( { model | phaseData = newPhase }
+                    , Nav.pushUrl
+                        model.navKey
+                        (Url.Builder.absolute
+                            [ code ]
+                            [ Url.Builder.int "p" playerId ]
+                        )
+                    )
+
+                _ ->
+                    pure model
+
+
+mapJoinPhase : Model -> ( JoinPage.Model, Cmd JoinPage.Msg ) -> ( Model, Cmd Msg )
 mapJoinPhase model =
     Response.mapBoth (\x -> { model | phaseData = JoinPhase x }) JoinPageMsg
 
@@ -173,14 +203,3 @@ msgInUnexpectedPhaseError msgPhase currentPhase =
             ++ " phase message in "
             ++ phaseToString currentPhase
             ++ " phase"
-
-
-joinGame : Model -> GlobalData -> ( Model, Cmd Msg )
-joinGame model globalData =
-    Channel.sendRpc
-        model
-        (Request.new "join_game"
-            |> Request.addString "code" globalData.sessionCode
-            |> Request.addInt "rounds" globalData.options.rounds
-            |> Request.addInt "skips" globalData.options.skips
-        )

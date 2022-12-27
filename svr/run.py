@@ -39,7 +39,7 @@ class GameFeature(entrance.ConfiguredFeature):
     name = "dare_app"
 
     requests: Dict[str, List[str]] = {
-        "join_game": ["code", "rounds", "skips"],
+        "join_game": ["code", "?rounds", "?skips"],
         "submit_dares": ["dares"],
         "decision": ["accept"],
     }
@@ -56,7 +56,7 @@ class GameFeature(entrance.ConfiguredFeature):
         self.player_state: Optional[PlayerState] = None
         self.next_choice: Optional[bool] = None
 
-    async def do_join_game(self, code: str, rounds: int, skips: int):
+    async def do_join_game(self, code: str, rounds: int = 10, skips: int = 5):
         if not code:
             self.code = "".join(
                 random.choices(string.ascii_uppercase + string.digits, k=5)
@@ -80,12 +80,13 @@ class GameFeature(entrance.ConfiguredFeature):
             sessions[self.code] = sess
         # Add player to game.
         logger.info("Player joining game with id %r", self.code)
-        self.player_state = PlayerState(self)
+        self.player_state = PlayerState(id=len(sess.players) + 1, feature=self)
         sess.players.append(self.player_state)
         pprint(sessions)
         if len(sess.players) == 2:
             for player in sessions[self.code].players:
-                await player.feature.game_ready()
+                if player.feature is not None:
+                    await player.feature.game_ready()
         else:
             return self._rpc_success(self.code)
 
@@ -95,7 +96,8 @@ class GameFeature(entrance.ConfiguredFeature):
             **self._result(
                 "game_ready",
                 result={
-                    "session_code": self.code,
+                    "code": self.code,
+                    "player_id": self.player_state.id,
                     "players": 2,
                     "rounds": sess.rounds,
                     "skips": sess.skips,
@@ -188,6 +190,7 @@ class PlayerGameState:
 
 @dataclass
 class PlayerState:
+    id: int
     feature: Optional[GameFeature]
     submitted_dares: Sequence[str] = ()
     game_state: Optional[PlayerGameState] = None

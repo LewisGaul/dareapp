@@ -23,12 +23,17 @@ import Json.Encode as Encode exposing (Value)
 import Utils.Toast as Toast exposing (Toast)
 
 
-{-| The types of message that we can loop back to the top level: either Toasts
-(pop-up notifications) or Errors (rare major problems).
+{-| The types of message that we can loop back to the top level:
+
+  - Toasts (pop-up notifications)
+  - Errors (rare major problems)
+  - Change phase notifications
+
 -}
 type Msg
     = Toast Toast
     | Error String String
+    | SetUrlCode String
 
 
 {-| Send either a Toast or Error message to the top level.
@@ -79,6 +84,12 @@ encode injectMsg =
                 , ( "error", Encode.string error )
                 ]
 
+        SetUrlCode code ->
+            Encode.object
+                [ ( "type", Encode.string "Url" )
+                , ( "code", Encode.string code )
+                ]
+
 
 {-| Decode Json into a Msg
 -}
@@ -112,6 +123,9 @@ decodeType injectType =
             Decode.map2 Error
                 (Decode.field "subsys" Decode.string)
                 (Decode.field "error" Decode.string)
+
+        "Url" ->
+            Decode.field "code" Decode.string |> Decode.map SetUrlCode
 
         other ->
             Decode.fail ("Bad InjectType: " ++ other)

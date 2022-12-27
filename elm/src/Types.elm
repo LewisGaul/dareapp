@@ -2,7 +2,6 @@ module Types exposing
     ( GlobalData
     , Model
     , Msg(..)
-    , Options
     , Phase(..)
     , phaseToString
     )
@@ -10,6 +9,7 @@ module Types exposing
 import Browser
 import Browser.Navigation as Nav
 import EnTrance.Channel exposing (SendPort)
+import EnTrance.Types exposing (RpcData)
 import EntryPage.Types as EntryPage
 import GameplayPage.Types as GameplayPage
 import JoinPage.Types as JoinPage
@@ -17,6 +17,7 @@ import Toasty
 import Url
 import Utils.Inject as Inject
 import Utils.Toast exposing (Toast)
+import Utils.Types exposing (Options)
 
 
 
@@ -42,13 +43,6 @@ type alias Model =
 type alias GlobalData =
     { sessionCode : String
     , options : Options
-    }
-
-
-type alias Options =
-    { players : Int
-    , rounds : Int
-    , skips : Int
     }
 
 
@@ -88,3 +82,5 @@ type Msg
     | JoinPageMsg JoinPage.Msg
     | EntryPageMsg EntryPage.Msg
     | GameplayPageMsg GameplayPage.Msg
+      -- Change phase
+    | GameReadyNotification (RpcData ( String, Int, Options ))

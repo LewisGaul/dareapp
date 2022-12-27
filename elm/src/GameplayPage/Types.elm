@@ -10,7 +10,8 @@ import EnTrance.Types exposing (RpcData)
 
 type alias Model =
     { sendPort : SendPort Msg
-    , dares : List String
+    , playerId : Int
+    , currentDare : Maybe String
     , round : Int
     , remainingSkips : Int
     , transition : Transition

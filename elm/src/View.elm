@@ -13,7 +13,6 @@ import Types
         ( GlobalData
         , Model
         , Msg(..)
-        , Options
         , Phase(..)
         )
 import Utils.Toast as Toast
@@ -26,8 +25,7 @@ view : Model -> Document Msg
 view model =
     { title = "Dare app"
     , body =
-        [ h2 [] [ text "Hello!" ]
-        , Grid.container []
+        [ Grid.container []
             [ viewError model.lastError
             , viewPhase model.phaseData
             , Toasty.view Toasty.Defaults.config Toast.view ToastyMsg model.toasties

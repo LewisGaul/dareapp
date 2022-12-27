@@ -328,6 +328,9 @@ class SessionState:
         for player in self.players:
             player.game_state.next_dare_choice = None
         self.game_state.next_dare_idx += 1
+        if self.game_state.next_dare_idx == self.rounds:
+            # Game is finished.
+            sessions.pop(self.code)
 
 
 sessions: Dict[str, SessionState] = dict()

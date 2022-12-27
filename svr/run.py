@@ -56,7 +56,9 @@ class GameFeature(entrance.ConfiguredFeature):
         self.player_state: Optional[PlayerState] = None
         self.next_choice: Optional[bool] = None
 
-    async def do_join_game(self, code: str, rounds: int = 10, skips: int = 5):
+    async def do_join_game(
+        self, code: str, rounds: Optional[int], skips: Optional[int]
+    ):
         if not code:
             self.code = "".join(
                 random.choices(string.ascii_uppercase + string.digits, k=5)
@@ -70,11 +72,17 @@ class GameFeature(entrance.ConfiguredFeature):
             sess = sessions[self.code]
             if len(sess.players) >= 2:
                 return self._rpc_failure(f"Game {self.code} already full")
-            if (rounds, skips) != (sess.rounds, sess.skips):
+            if rounds not in [sess.rounds, None] or skips not in [sess.skips, None]:
                 return self._rpc_failure(
-                    f"Requested game options do not match existing game with code {self.code}"
+                    f"Requested game options (rounds={rounds}, skips={skips}) "
+                    f"do not match existing game with code {self.code} "
+                    f"(rounds={sess.rounds}, skips={sess.skips})"
                 )
         else:
+            if rounds is None:
+                rounds = 8
+            if skips is None:
+                skips = 3
             logger.info("Creating game with id %r", self.code)
             sess = SessionState(code=self.code, rounds=rounds, skips=skips, players=[])
             sessions[self.code] = sess

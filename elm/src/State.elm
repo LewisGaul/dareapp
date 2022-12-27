@@ -3,8 +3,6 @@ module State exposing (defaultOptions, init, update)
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Comms
-import EnTrance.Channel as Channel
-import EnTrance.Request as Request
 import EntryPage.State as EntryPage
 import EntryPage.Types as EntryPhase
 import GameplayPage.State as GameplayPage
@@ -78,11 +76,9 @@ update msg model =
             in
             if isUp then
                 case Url.Parser.parse urlParser model.url of
-                    Just data ->
+                    Just ( code, options ) ->
                         update
-                            (JoinPageMsg <|
-                                JoinPage.Join data.sessionCode (Just data.options)
-                            )
+                            (JoinPageMsg <| JoinPage.Join code options)
                             model
 
                     Nothing ->

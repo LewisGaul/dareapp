@@ -8,9 +8,8 @@ import EnTrance.Types exposing (RpcData)
 -- MODEL
 
 
-type alias Model globalData =
+type alias Model =
     { sendPort : SendPort Msg
-    , globalData : globalData
     , dares : List String
     , round : Int
     , remainingSkips : Int
@@ -31,6 +30,7 @@ type Transition
 
 
 type Msg
-    = MakeDecision Bool
+    = Error String
+    | MakeDecision Bool
     | ReceivedOutcome (RpcData String)
     | NextRound

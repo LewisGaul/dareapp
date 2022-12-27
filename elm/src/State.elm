@@ -1,20 +1,32 @@
 module State exposing (defaultOptions, init, update)
 
-import Array
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Comms
 import EnTrance.Channel as Channel
 import EnTrance.Request as Request
-import EntryPage.State
-import EntryPage.Types
-import GameplayPage.State
-import RemoteData exposing (RemoteData(..))
+import EntryPage.State as EntryPage
+import EntryPage.Types as EntryPhase
+import GameplayPage.State as GameplayPage
+import GameplayPage.Types as GameplayPhase
+import JoinPage.State as JoinPage
+import JoinPage.Types as JoinPhase
 import Response exposing (pure)
-import Types exposing (GlobalData, Model, Msg(..), Options, Phase(..))
+import Toasty
+import Types
+    exposing
+        ( GlobalData
+        , Model
+        , Msg(..)
+        , Options
+        , Phase(..)
+        , phaseToString
+        )
 import Url
-import Url.Parser as Parser
+import Url.Parser
 import UrlParser exposing (urlParser)
+import Utils.Inject as Inject
+import Utils.Toast as Toast
 
 
 
@@ -26,15 +38,24 @@ defaultOptions =
     { players = 2, rounds = 10, skips = 5 }
 
 
+{-| There aren't any initial commands, because we defer most initial
+processing until we have established a connection with the server.
+-}
 init : { basePath : String } -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init { basePath } url navKey =
     pure
         { sendPort = Comms.appSend
+        , connectionIsUp = False
         , lastError = Nothing
+        , toasties = Toasty.initialState
+
+        -- URL handling
         , basePath = basePath
         , navKey = navKey
         , url = url
-        , phaseData = CreateJoinPhase { sessionCode = "", options = defaultOptions }
+
+        -- Phase data
+        , phaseData = JoinPhase JoinPage.initState
         }
 
 
@@ -48,9 +69,13 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         -- Global message types
-        ChannelIsUp up ->
-            if up then
-                case Parser.parse urlParser model.url of
+        ChannelIsUp isUp ->
+            let
+                updatedModel =
+                    { model | connectionIsUp = isUp }
+            in
+            if isUp then
+                case Url.Parser.parse urlParser model.url of
                     Just globalData ->
                         joinGame model globalData
 
@@ -58,8 +83,7 @@ update msg model =
                         pure model
 
             else
-                -- meh
-                pure model
+                pure updatedModel
 
         UrlChanged url ->
             -- Handle a URL change, e.g. from Nav.pushUrl or back/forward browser buttons.
@@ -80,137 +104,81 @@ update msg model =
         Error error ->
             pure { model | lastError = Just error }
 
-        -- User creates/joins a game
-        JoinGame code ->
-            case model.phaseData of
-                CreateJoinPhase _ ->
-                    joinGame model { sessionCode = code, options = defaultOptions }
+        Injected (Inject.Error subsys error) ->
+            let
+                errMsg =
+                    "[" ++ subsys ++ "] " ++ error
+            in
+            update (Error errMsg) model
 
-                _ ->
-                    update (Error "Got join request in wrong phase") model
+        Injected (Inject.Toast toast) ->
+            update (AddToast toast) model
 
-        JoinGameResult result ->
-            case result of
-                Success code ->
-                    let
-                        newGlobalData old =
-                            { sessionCode = code, options = old.options }
+        ToastyMsg innerMsg ->
+            Toasty.update Toast.config ToastyMsg innerMsg model
 
-                        newPhaseData =
-                            case model.phaseData of
-                                WaitingPhase waitingData ->
-                                    WaitingPhase
-                                        { message = waitingData.message ++ " (session code: " ++ code ++ ")"
-                                        , globalData = newGlobalData waitingData.globalData
-                                        }
-
-                                _ ->
-                                    model.phaseData
-                    in
-                    pure { model | phaseData = newPhaseData }
-
-                Failure error ->
-                    update (Error error) model
-
-                _ ->
-                    pure model
-
-        -- Notification of game being ready
-        GameReady result ->
-            case result of
-                Success globalData ->
-                    pure { model | phaseData = EntryPhase (EntryPage.State.initState globalData) }
-
-                Failure error ->
-                    update (Error error) model
-
-                _ ->
-                    pure model
-
-        -- Notification of all dares being collected
-        ReceiveDares result ->
-            case result of
-                Success dares ->
-                    case model.phaseData of
-                        WaitingPhase phaseData ->
-                            pure
-                                { model
-                                    | phaseData =
-                                        ActivePhase
-                                            (GameplayPage.State.initState dares phaseData.globalData)
-                                }
-
-                        EntryPhase phaseData ->
-                            pure
-                                { model
-                                    | phaseData =
-                                        ActivePhase
-                                            (GameplayPage.State.initState dares phaseData.globalData)
-                                }
-
-                        _ ->
-                            update (Error "Received dares in unexpected phase") model
-
-                -- Handle as any other error.
-                Failure error ->
-                    update (Error error) model
-
-                _ ->
-                    pure model
+        AddToast innerMsg ->
+            pure model
+                |> Toasty.addToast Toast.config ToastyMsg innerMsg
 
         -- Messages to pass to subpage handling
-        EntryPageMsg innerMsg ->
+        JoinPageMsg innerMsg ->
             case model.phaseData of
-                EntryPhase data ->
-                    case innerMsg of
-                        EntryPage.Types.EndSetupPhase ->
-                            if List.any String.isEmpty (Array.toList data.inputs) then
-                                pure { model | lastError = Just "Enter something in each input box" }
-
-                            else
-                                EntryPage.State.update innerMsg data
-                                    |> Tuple.mapFirst
-                                        (\_ ->
-                                            { model
-                                                | phaseData =
-                                                    WaitingPhase
-                                                        { message = "submitting dares"
-                                                        , globalData = data.globalData
-                                                        }
-                                                , lastError = Nothing
-                                            }
-                                        )
-                                    |> Tuple.mapSecond (Cmd.map EntryPageMsg)
-
-                        _ ->
-                            EntryPage.State.update innerMsg data
-                                |> Tuple.mapFirst (\a -> { model | phaseData = EntryPhase a })
-                                |> Tuple.mapSecond (Cmd.map EntryPageMsg)
+                JoinPhase innerModel ->
+                    JoinPage.update innerMsg innerModel
+                        |> mapJoinPhase model
 
                 _ ->
-                    update (Error "Got entry page message in wrong phase") model
+                    update (msgInUnexpectedPhaseError "join" model.phaseData) model
+
+        EntryPageMsg innerMsg ->
+            case model.phaseData of
+                EntryPhase innerModel ->
+                    EntryPage.update innerMsg innerModel
+                        |> mapEntryPhase model
+
+                _ ->
+                    update (msgInUnexpectedPhaseError "entry" model.phaseData) model
 
         GameplayPageMsg innerMsg ->
             case model.phaseData of
-                ActivePhase data ->
-                    GameplayPage.State.update innerMsg data
-                        |> Tuple.mapFirst (\a -> { model | phaseData = ActivePhase a })
-                        |> Tuple.mapSecond (Cmd.map GameplayPageMsg)
+                GameplayPhase innerModel ->
+                    GameplayPage.update innerMsg innerModel
+                        |> mapGameplayPhase model
 
                 _ ->
-                    update (Error "Got entry page message in wrong phase") model
+                    update (msgInUnexpectedPhaseError "gameplay" model.phaseData) model
+
+
+mapJoinPhase : Model -> ( JoinPhase.Model, Cmd JoinPhase.Msg ) -> ( Model, Cmd Msg )
+mapJoinPhase model =
+    Response.mapBoth (\x -> { model | phaseData = JoinPhase x }) JoinPageMsg
+
+
+mapEntryPhase : Model -> ( EntryPhase.Model, Cmd EntryPhase.Msg ) -> ( Model, Cmd Msg )
+mapEntryPhase model =
+    Response.mapBoth (\x -> { model | phaseData = EntryPhase x }) EntryPageMsg
+
+
+mapGameplayPhase : Model -> ( GameplayPhase.Model, Cmd GameplayPhase.Msg ) -> ( Model, Cmd Msg )
+mapGameplayPhase model =
+    Response.mapBoth (\x -> { model | phaseData = GameplayPhase x }) GameplayPageMsg
+
+
+msgInUnexpectedPhaseError : String -> Phase -> Msg
+msgInUnexpectedPhaseError msgPhase currentPhase =
+    Error <|
+        "Unexpectedly received "
+            ++ msgPhase
+            ++ " phase message in "
+            ++ phaseToString currentPhase
+            ++ " phase"
 
 
 joinGame : Model -> GlobalData -> ( Model, Cmd Msg )
 joinGame model globalData =
     Channel.sendRpc
-        { model
-            | phaseData =
-                WaitingPhase
-                    { message = "players joining"
-                    , globalData = globalData
-                    }
-        }
+        model
         (Request.new "join_game"
             |> Request.addString "code" globalData.sessionCode
             |> Request.addInt "rounds" globalData.options.rounds

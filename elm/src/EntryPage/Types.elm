@@ -9,9 +9,8 @@ import EnTrance.Types exposing (RpcData)
 -- MODEL
 
 
-type alias Model globalData =
+type alias Model =
     { sendPort : SendPort Msg
-    , globalData : globalData
     , inputs : Array String
     }
 

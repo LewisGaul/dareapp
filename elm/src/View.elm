@@ -1,11 +1,13 @@
 module View exposing (view)
 
-import Bootstrap.Button exposing (button, onClick)
 import Bootstrap.Grid as Grid
 import Browser exposing (Document)
-import EntryPage.View
-import GameplayPage.View
-import Html exposing (Html, text)
+import EntryPage.View as EntryPage
+import GameplayPage.View as GameplayPage
+import Html exposing (Html, div, h2, text)
+import JoinPage.View as JoinPage
+import Toasty
+import Toasty.Defaults
 import Types
     exposing
         ( GlobalData
@@ -13,8 +15,8 @@ import Types
         , Msg(..)
         , Options
         , Phase(..)
-        , WaitingData
         )
+import Utils.Toast as Toast
 import Utils.ViewHelper exposing (viewError)
 
 
@@ -24,38 +26,24 @@ view : Model -> Document Msg
 view model =
     { title = "Dare app"
     , body =
-        [ viewError model.lastError
+        [ h2 [] [ text "Hello!" ]
+        , Grid.container []
+            [ viewError model.lastError
+            , viewPhase model.phaseData
+            , Toasty.view Toasty.Defaults.config Toast.view ToastyMsg model.toasties
+            ]
         ]
-            ++ viewPhase model.phaseData
     }
 
 
-viewPhase : Phase -> List (Html Msg)
+viewPhase : Phase -> Html Msg
 viewPhase phase =
     case phase of
-        CreateJoinPhase data ->
-            viewLandingPage data
+        JoinPhase p ->
+            JoinPage.view p |> Html.map JoinPageMsg
 
         EntryPhase p ->
-            EntryPage.View.view p |> List.map (Html.map EntryPageMsg)
+            EntryPage.view p |> List.map (Html.map EntryPageMsg) |> div []
 
-        ActivePhase p ->
-            GameplayPage.View.view p |> List.map (Html.map GameplayPageMsg)
-
-        WaitingPhase p ->
-            viewWaitingPhase p
-
-
-viewLandingPage : GlobalData -> List (Html Msg)
-viewLandingPage data =
-    [ Grid.row []
-        [ Grid.col []
-            [ button [ onClick (JoinGame data.sessionCode) ] [ text "Join" ]
-            ]
-        ]
-    ]
-
-
-viewWaitingPhase : WaitingData -> List (Html Msg)
-viewWaitingPhase model =
-    [ text ("Waiting for other players: " ++ model.message) ]
+        GameplayPhase p ->
+            GameplayPage.view p |> Html.map GameplayPageMsg

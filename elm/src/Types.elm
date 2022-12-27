@@ -4,16 +4,19 @@ module Types exposing
     , Msg(..)
     , Options
     , Phase(..)
-    , WaitingData
+    , phaseToString
     )
 
 import Browser
 import Browser.Navigation as Nav
 import EnTrance.Channel exposing (SendPort)
-import EnTrance.Types exposing (RpcData)
-import EntryPage.Types
-import GameplayPage.Types
+import EntryPage.Types as EntryPage
+import GameplayPage.Types as GameplayPage
+import JoinPage.Types as JoinPage
+import Toasty
 import Url
+import Utils.Inject as Inject
+import Utils.Toast exposing (Toast)
 
 
 
@@ -22,7 +25,9 @@ import Url
 
 type alias Model =
     { sendPort : SendPort Msg
+    , connectionIsUp : Bool
     , lastError : Maybe String
+    , toasties : Toasty.Stack Toast
 
     -- Navigation
     , basePath : String
@@ -48,16 +53,22 @@ type alias Options =
 
 
 type Phase
-    = CreateJoinPhase GlobalData
-    | EntryPhase (EntryPage.Types.Model GlobalData)
-    | ActivePhase (GameplayPage.Types.Model GlobalData)
-    | WaitingPhase WaitingData
+    = JoinPhase JoinPage.Model
+    | EntryPhase EntryPage.Model
+    | GameplayPhase GameplayPage.Model
 
 
-type alias WaitingData =
-    { message : String
-    , globalData : GlobalData
-    }
+phaseToString : Phase -> String
+phaseToString phase =
+    case phase of
+        JoinPhase _ ->
+            "join"
+
+        EntryPhase _ ->
+            "entry"
+
+        GameplayPhase _ ->
+            "gameplay"
 
 
 
@@ -65,13 +76,15 @@ type alias WaitingData =
 
 
 type Msg
-    = ChannelIsUp Bool
+    = -- Global
+      ChannelIsUp Bool
     | LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
     | Error String
-    | JoinGame String
-    | JoinGameResult (RpcData String)
-    | GameReady (RpcData GlobalData)
-    | EntryPageMsg EntryPage.Types.Msg
-    | ReceiveDares (RpcData (List String))
-    | GameplayPageMsg GameplayPage.Types.Msg
+    | Injected Inject.Msg
+    | ToastyMsg (Toasty.Msg Toast)
+    | AddToast Toast
+      -- Subpage
+    | JoinPageMsg JoinPage.Msg
+    | EntryPageMsg EntryPage.Msg
+    | GameplayPageMsg GameplayPage.Msg

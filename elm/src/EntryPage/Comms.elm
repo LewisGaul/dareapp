@@ -1,7 +1,6 @@
 port module EntryPage.Comms exposing
     ( entryPageRecv
     , entryPageSend
-    , notifications
     , subscriptions
     )
 
@@ -23,17 +22,13 @@ port entryPageRecv : Channel.RecvPort msg
 
 subscriptions : Sub Msg
 subscriptions =
-    Channel.sub entryPageRecv Error notifications
+    Sub.batch
+        [ Channel.sub entryPageRecv Error decoders
+        ]
 
 
-{-| The notifications we want to decode.
+{-| Decoders for all the notifications we can receive
 -}
-notifications : List (Decoder Msg)
-notifications =
-    [ decodeSubmitDaresResult
-    ]
-
-
-decodeSubmitDaresResult : Decoder Msg
-decodeSubmitDaresResult =
-    Gen.decodeRpc "submit_dares" (Decode.null ()) |> Decode.map SubmitDaresResult
+decoders : List (Decoder Msg)
+decoders =
+    []

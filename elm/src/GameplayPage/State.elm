@@ -7,16 +7,16 @@ import GameplayPage.Types exposing (Model, Msg(..), Transition(..))
 import RemoteData exposing (RemoteData(..))
 import Response exposing (pure)
 import Types exposing (GlobalData, Options)
+import Utils.Inject as Inject
 
 
 
 -- INITIAL STATE
 
 
-initState : List String -> GlobalData -> Model GlobalData
+initState : List String -> GlobalData -> Model
 initState dares globalData =
     { sendPort = Comms.gameplayPageSend
-    , globalData = globalData
     , dares = dares
     , round = 0
     , remainingSkips = globalData.options.skips
@@ -28,52 +28,67 @@ initState dares globalData =
 -- UPDATE
 
 
-{-| Handle incoming messages.
--}
-update : Msg -> Model GlobalData -> ( Model GlobalData, Cmd Msg )
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        NextRound ->
-            case model.transition of
-                Ready ->
-                    pure { model | transition = Decision }
-
-                Outcome _ ->
-                    pure { model | transition = Decision, round = model.round + 1 }
-
-                _ ->
-                    -- TODO: Error
-                    pure model
+        Error error ->
+            Inject.send (Inject.Error "gameplay page" error) model
 
         MakeDecision accepted ->
-            let
-                remainingSkips old =
-                    if accepted then
-                        old
-
-                    else
-                        old - 1
-            in
-            case model.transition of
-                Decision ->
-                    Channel.sendRpc
-                        { model
-                            | transition = Waiting
-                            , remainingSkips = remainingSkips model.remainingSkips
-                        }
-                        (Request.new "decision"
-                            |> Request.addBool "accept" accepted
-                        )
-
-                _ ->
-                    -- TODO: Error
-                    pure model
+            pure model
 
         ReceivedOutcome result ->
-            case result of
-                Success outcome ->
-                    pure { model | transition = Outcome outcome }
+            pure model
 
-                _ ->
-                    -- TODO: Handle errors
-                    pure model
+        NextRound ->
+            pure model
+
+
+
+--updateXXX : Msg -> Model -> ( Model, Cmd Msg )
+--updateXXX msg model =
+--    case msg of
+--        NextRound ->
+--            case model.transition of
+--                Ready ->
+--                    pure { model | transition = Decision }
+--
+--                Outcome _ ->
+--                    pure { model | transition = Decision, round = model.round + 1 }
+--
+--                _ ->
+--                    -- TODO: Error
+--                    pure model
+--
+--        MakeDecision accepted ->
+--            let
+--                remainingSkips old =
+--                    if accepted then
+--                        old
+--
+--                    else
+--                        old - 1
+--            in
+--            case model.transition of
+--                Decision ->
+--                    Channel.sendRpc
+--                        { model
+--                            | transition = Waiting
+--                            , remainingSkips = remainingSkips model.remainingSkips
+--                        }
+--                        (Request.new "decision"
+--                            |> Request.addBool "accept" accepted
+--                        )
+--
+--                _ ->
+--                    -- TODO: Error
+--                    pure model
+--
+--        ReceivedOutcome result ->
+--            case result of
+--                Success outcome ->
+--                    pure { model | transition = Outcome outcome }
+--
+--                _ ->
+--                    -- TODO: Handle errors
+--                    pure model

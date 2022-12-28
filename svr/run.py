@@ -343,7 +343,7 @@ class SessionState:
             self.game_state.current_round,
             self.code,
         )
-        assert self.game_state.current_round < self.rounds
+        assert self.game_state.current_round <= self.rounds
         for player in self.players.values():
             assert player.game_state is not None
             player.game_state.waiting = False

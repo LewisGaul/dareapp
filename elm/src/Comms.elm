@@ -50,6 +50,7 @@ decoders : List (Decoder Msg)
 decoders =
     [ decodeRequest "start_entry_phase" decodeCodePlayerAndOptions StartEntryPhaseNotification
     , decodeRequest "start_game_phase" decodeOptions StartGameplayPhaseNotification
+    , decodeRequest "reconnect" GameplayPage.decodeModel ReconnectionResult
     ]
 
 

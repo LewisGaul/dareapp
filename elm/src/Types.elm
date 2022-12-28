@@ -47,7 +47,8 @@ type alias GlobalData =
 
 
 type Phase
-    = JoinPhase JoinPage.Model
+    = InitialisingPhase
+    | JoinPhase JoinPage.Model
     | EntryPhase EntryPage.Model
     | GameplayPhase GameplayPage.Model
 
@@ -55,6 +56,9 @@ type Phase
 phaseToString : Phase -> String
 phaseToString phase =
     case phase of
+        InitialisingPhase ->
+            "initialising"
+
         JoinPhase _ ->
             "join"
 
@@ -85,3 +89,4 @@ type Msg
       -- Change phase
     | StartEntryPhaseNotification (RpcData ( String, Int, Options ))
     | StartGameplayPhaseNotification (RpcData Options)
+    | ReconnectionResult (RpcData GameplayPage.Model)

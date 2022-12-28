@@ -34,7 +34,7 @@ view model =
                 viewDare dareState.dare ("You " ++ message ++ ", waiting for other players to decide...")
 
             Outcome dareState message ->
-                viewOutcome dareState.dare message
+                viewOutcome dareState.dare message (dareState.round == model.options.rounds)
 
             Finished ->
                 viewFinished
@@ -89,12 +89,20 @@ viewDare dare message =
         ]
 
 
-viewOutcome : String -> String -> Html Msg
-viewOutcome dare message =
+viewOutcome : String -> String -> Bool -> Html Msg
+viewOutcome dare message finalRound =
+    let
+        nextButtonText =
+            if finalRound then
+                "Finish"
+
+            else
+                "Next round"
+    in
     div []
         [ viewDare dare message
         , br [] []
-        , button [ Button.primary, onClick NextRound ] [ text "Next round" ]
+        , button [ Button.primary, onClick NextRound ] [ text nextButtonText ]
         ]
 
 

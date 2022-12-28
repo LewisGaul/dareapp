@@ -43,6 +43,7 @@ class GameFeature(entrance.ConfiguredFeature):
         "submit_dares": ["dares"],
         "next_round": ["__req__"],
         "decision": ["accept", "__req__"],
+        "reconnect": ["code", "player_id"],
     }
     notifications: List[Optional[str]] = [
         None,
@@ -87,12 +88,12 @@ class GameFeature(entrance.ConfiguredFeature):
             if skips is None:
                 skips = 3
             logger.info("Creating game with id %r", self.code)
-            sess = SessionState(code=self.code, rounds=rounds, skips=skips, players=[])
+            sess = SessionState(code=self.code, rounds=rounds, skips=skips, players={})
             sessions[self.code] = sess
         # Add player to game.
         logger.info("Player joining game with id %r", self.code)
         self.player_state = PlayerState(id=len(sess.players) + 1, feature=self)
-        sess.players.append(self.player_state)
+        sess.players[self.player_state.id] = self.player_state
         pprint(sessions)
         if len(sess.players) == 2:
             await sess.start_entry_phase()
@@ -122,7 +123,7 @@ class GameFeature(entrance.ConfiguredFeature):
     async def do_submit_dares(self, dares: List[str]):
         self.player_state.submitted_dares = dares
         sess = sessions[self.code]
-        if all(x.submitted_dares for x in sess.players):
+        if all(x.submitted_dares for x in sess.players.values()):
             # All players have submitted dares, so shuffle and share them out.
             await sess.share_out_dares_and_start_game()
         else:
@@ -150,7 +151,7 @@ class GameFeature(entrance.ConfiguredFeature):
         self._get_channel_id(req)
         self.player_state.game_state.waiting = True
         sess = sessions[self.code]
-        if all(p.game_state.waiting for p in sess.players):
+        if all(p.game_state.waiting for p in sess.players.values()):
             await sess.send_next_round_of_dares()
 
     async def send_next_dare(self, round: int, dare: str):
@@ -172,12 +173,13 @@ class GameFeature(entrance.ConfiguredFeature):
     async def do_decision(self, accept: bool, req):
         # Snoop the channel ID so that we can send notifications...
         self._get_channel_id(req)
-        self.player_state.game_state.next_dare_choice = (
+        self.player_state.game_state.dare_choice = (
             Choice.ACCEPT if accept else Choice.REFUSE
         )
         sess = sessions[self.code]
         if all(
-            player.game_state.next_dare_choice is not None for player in sess.players
+            player.game_state.dare_choice is not None
+            for player in sess.players.values()
         ):
             await sess.send_round_outcomes()
 
@@ -191,9 +193,55 @@ class GameFeature(entrance.ConfiguredFeature):
         }
         await self.ws_handler.notify(**result)
 
+    async def do_reconnect(self, code: str, player_id: int):
+        try:
+            sess = sessions[code]
+        except KeyError:
+            return self._rpc_failure(f"Session with code {code!r} not found")
+        if not sess.game_state:
+            # TODO: This should get the player back to the entry page...
+            return self._rpc_failure(
+                f"Game not started in session {code!r}, unable to reconnect"
+            )
+        try:
+            player = sess.players[player_id]
+        except KeyError:
+            return self._rpc_failure(
+                f"Player with ID {str(player_id)!r} not found in session {code!r}"
+            )
+        assert (
+            player.game_state is not None
+        ), "Session has active game state but player does not"
+        if player.feature:
+            return self._rpc_failure(
+                f"Player {player_id} already connected in session {code!r}"
+            )
+
+        self.code = code
+        self.player_state = player
+        player.feature = self
+        return self._rpc_success(
+            {
+                "players": len(sess.players),
+                "rounds": sess.rounds,
+                "skips": sess.skips,
+                "current_round": sess.game_state.current_round,
+                "remaining_skips": player.game_state.remaining_skips,
+                "current_dare": player.game_state.current_dare,
+                "dare_choice": (
+                    player.game_state.dare_choice.name.lower()
+                    if player.game_state.dare_choice
+                    else None
+                ),
+                "outcome": player.game_state.outcome,
+            }
+        )
+
     def close(self):
         if self.player_state:
             self.player_state.feature = None
+            if self.player_state.game_state:
+                self.player_state.game_state.waiting = False
 
     def _get_channel_id(self, req):
         self._channel_id = req["id"]
@@ -212,7 +260,9 @@ class Choice(enum.Enum):
 class PlayerGameState:
     dares: List[str]
     remaining_skips: int
-    next_dare_choice: Optional[Choice] = None
+    current_dare: Optional[str] = None
+    dare_choice: Optional[Choice] = None
+    outcome: Optional[str] = None
     waiting: bool = False
 
 
@@ -226,7 +276,7 @@ class PlayerState:
 
 @dataclass
 class SessionGameState:
-    next_dare_idx: int = 0
+    current_round: int = 0
 
 
 @dataclass
@@ -234,21 +284,23 @@ class SessionState:
     code: str
     rounds: int
     skips: int
-    players: List[PlayerState]
+    players: Dict[int, PlayerState]
     game_state: Optional[SessionGameState] = None
 
     async def start_entry_phase(self):
-        for player in self.players:
+        for player in self.players.values():
             if player.feature is not None:
                 await player.feature.start_entry_phase()
 
     async def share_out_dares_and_start_game(self):
         self.game_state = SessionGameState()
         logger.info("Sharing out dares in session %s", self.code)
-        assert all(len(x.submitted_dares) == self.rounds for x in self.players)
-        all_dares = [d for player in self.players for d in player.submitted_dares]
+        assert all(len(x.submitted_dares) == self.rounds for x in self.players.values())
+        all_dares = [
+            d for player in self.players.values() for d in player.submitted_dares
+        ]
         random.shuffle(all_dares)
-        for i, player in enumerate(self.players):
+        for i, player in enumerate(self.players.values()):
             allocated_dares = all_dares[i * self.rounds : (i + 1) * self.rounds]
             player.game_state = PlayerGameState(
                 allocated_dares, remaining_skips=self.skips
@@ -261,60 +313,63 @@ class SessionState:
             await player.feature.start_game_phase(self.rounds, self.skips)
 
     async def send_next_round_of_dares(self):
+        self.game_state.current_round += 1
         logger.info(
             "Sending round %s of dares in session %s",
-            self.game_state.next_dare_idx + 1,
+            self.game_state.current_round,
             self.code,
         )
-        assert self.game_state.next_dare_idx < self.rounds
-        for player in self.players:
+        assert self.game_state.current_round <= self.rounds
+        for player in self.players.values():
             assert player.game_state is not None
+            player.game_state.waiting = False
+            player.game_state.outcome = None
             if player.feature is None:
                 logger.debug(
                     "Player %d not connected to session %s", player.id, self.code
                 )
                 continue
-            player.game_state.waiting = False
+            player.game_state.current_dare = player.game_state.dares[
+                self.game_state.current_round - 1
+            ]
             await player.feature.send_next_dare(
-                self.game_state.next_dare_idx + 1,
-                player.game_state.dares[self.game_state.next_dare_idx],
+                self.game_state.current_round,
+                player.game_state.current_dare,
             )
 
     async def send_round_outcomes(self):
         logger.info(
             "Sending outcomes for round %s in session %s",
-            self.game_state.next_dare_idx + 1,
+            self.game_state.current_round,
             self.code,
         )
-        assert self.game_state.next_dare_idx < self.rounds
-        for player in self.players:
+        assert self.game_state.current_round < self.rounds
+        for player in self.players.values():
             assert player.game_state is not None
+            player.game_state.waiting = False
             if player.feature is None:
                 logger.debug(
                     "Player %d not connected to session %s", player.id, self.code
                 )
                 continue
-            player.game_state.waiting = False
             # Send the appropriate outcome message.
-            opponent = [p for p in self.players if p is not player][0]
-            opponent_dare = opponent.game_state.dares[self.game_state.next_dare_idx]
+            opponent = [p for p in self.players.values() if p is not player][0]
+            opponent_dare = opponent.game_state.dares[self.game_state.current_round - 1]
             if all(
-                p.game_state.next_dare_choice is Choice.ACCEPT
-                for p in [player, opponent]
+                p.game_state.dare_choice is Choice.ACCEPT for p in [player, opponent]
             ):
                 outcome = (
                     "All players accepted, you must do your dare and your "
                     f"opponent must do: {opponent_dare!r}"
                 )
             elif all(
-                p.game_state.next_dare_choice is Choice.REFUSE
-                for p in [player, opponent]
+                p.game_state.dare_choice is Choice.REFUSE for p in [player, opponent]
             ):
                 outcome = (
                     f"All players refused (opponent had {opponent_dare!r}), "
                     "dares are skipped"
                 )
-            elif player.game_state.next_dare_choice is Choice.REFUSE:
+            elif player.game_state.dare_choice is Choice.REFUSE:
                 outcome = (
                     f"You refused, your opponent may skip their dare "
                     f"{opponent_dare!r}"
@@ -324,11 +379,11 @@ class SessionState:
                     f"Opponent refused to do {opponent_dare!r}, you may skip "
                     "your dare"
                 )
+            player.game_state.outcome = outcome
             await player.feature.send_outcome(outcome)
-        for player in self.players:
-            player.game_state.next_dare_choice = None
-        self.game_state.next_dare_idx += 1
-        if self.game_state.next_dare_idx == self.rounds:
+        for player in self.players.values():
+            player.game_state.dare_choice = None
+        if self.game_state.current_round == self.rounds:
             # Game is finished.
             sessions.pop(self.code)
 

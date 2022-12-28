@@ -3,6 +3,8 @@ module State exposing (init, update)
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Comms
+import EnTrance.Channel as Channel
+import EnTrance.Request as Request
 import EntryPage.State as EntryPage
 import EntryPage.Types as EntryPhase
 import GameplayPage.State as GameplayPage
@@ -48,7 +50,7 @@ init { basePath } url navKey =
         , url = url
 
         -- Phase data
-        , phaseData = JoinPhase JoinPage.initState
+        , phaseData = InitialisingPhase
         }
 
 
@@ -59,21 +61,22 @@ initPostChannelUp : Model -> ( Model, Cmd Msg )
 initPostChannelUp model =
     case parseUrl model.url of
         PlainUrl ->
-            pure model
+            pure { model | phaseData = JoinPhase JoinPage.initState }
 
         InactiveSessionUrl sessionCode maybeOptions ->
             update
                 (JoinPageMsg <| JoinPage.Join sessionCode maybeOptions)
-                model
+                { model | phaseData = JoinPhase JoinPage.initState }
 
         ActiveSessionUrl sessionCode playerId ->
-            -- TODO
-            pure model
+            Channel.sendRpc model
+                (Request.new "reconnect"
+                    |> Request.addString "code" sessionCode
+                    |> Request.addInt "player_id" playerId
+                )
 
         InvalidUrl error ->
-            ( { model | lastError = Just <| "Unrecognised URL: " ++ error }
-            , Nav.replaceUrl model.navKey "/"
-            )
+            pure { model | lastError = Just <| "Unrecognised URL: " ++ error }
 
 
 
@@ -196,6 +199,21 @@ update msg model =
                             GameplayPhase (GameplayPage.initState options)
                     in
                     pure { model | phaseData = newPhase }
+
+                _ ->
+                    pure model
+
+        ReconnectionResult result ->
+            case result of
+                Success innerModel ->
+                    let
+                        newPhase =
+                            GameplayPhase innerModel
+                    in
+                    pure { model | phaseData = newPhase }
+
+                Failure error ->
+                    update (Error error) model
 
                 _ ->
                     pure model

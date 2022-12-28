@@ -93,17 +93,3 @@ update msg model =
 
                 _ ->
                     pure model
-
-
-
---updateXXX : Msg -> Model -> ( Model, Cmd Msg )
---updateXXX msg model =
---    case msg of
---        ReceivedOutcome result ->
---            case result of
---                Success outcome ->
---                    pure { model | transition = Outcome outcome }
---
---                _ ->
---                    -- TODO: Handle errors
---                    pure model

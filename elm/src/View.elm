@@ -4,7 +4,7 @@ import Bootstrap.Grid as Grid
 import Browser exposing (Document)
 import EntryPage.View as EntryPage
 import GameplayPage.View as GameplayPage
-import Html exposing (Html)
+import Html exposing (Html, text)
 import JoinPage.View as JoinPage
 import Toasty
 import Toasty.Defaults
@@ -37,6 +37,9 @@ view model =
 viewPhase : Phase -> Html Msg
 viewPhase phase =
     case phase of
+        InitialisingPhase ->
+            text "Initialising..."
+
         JoinPhase p ->
             JoinPage.view p |> Html.map JoinPageMsg
 

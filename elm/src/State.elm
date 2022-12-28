@@ -22,8 +22,7 @@ import Types
         )
 import Url
 import Url.Builder
-import Url.Parser
-import UrlParser exposing (urlParser)
+import UrlParser exposing (UrlResult(..), parseUrl)
 import Utils.Inject as Inject
 import Utils.Toast as Toast
 
@@ -53,6 +52,30 @@ init { basePath } url navKey =
         }
 
 
+{-| Initialisation to perform after the server connection is up. This is where
+URL handling is performed.
+-}
+initPostChannelUp : Model -> ( Model, Cmd Msg )
+initPostChannelUp model =
+    case parseUrl model.url of
+        PlainUrl ->
+            pure model
+
+        InactiveSessionUrl sessionCode maybeOptions ->
+            update
+                (JoinPageMsg <| JoinPage.Join sessionCode maybeOptions)
+                model
+
+        ActiveSessionUrl sessionCode playerId ->
+            -- TODO
+            pure model
+
+        InvalidUrl error ->
+            ( { model | lastError = Just <| "Unrecognised URL: " ++ error }
+            , Nav.replaceUrl model.navKey "/"
+            )
+
+
 
 -- UPDATE
 
@@ -69,14 +92,7 @@ update msg model =
                     { model | connectionIsUp = isUp }
             in
             if isUp then
-                case Url.Parser.parse urlParser model.url of
-                    Just ( code, options ) ->
-                        update
-                            (JoinPageMsg <| JoinPage.Join code options)
-                            model
-
-                    Nothing ->
-                        pure model
+                initPostChannelUp updatedModel
 
             else
                 pure updatedModel
@@ -108,7 +124,7 @@ update msg model =
 
         Injected (Inject.SetUrlCode code) ->
             ( model
-            , Nav.pushUrl model.navKey (Url.Builder.absolute [ code ] [])
+            , Nav.replaceUrl model.navKey (Url.Builder.absolute [ code ] [])
             )
 
         ToastyMsg innerMsg ->
@@ -158,7 +174,7 @@ update msg model =
                             EntryPhase (EntryPage.initState options)
                     in
                     ( { model | phaseData = newPhase }
-                    , Nav.pushUrl
+                    , Nav.replaceUrl
                         model.navKey
                         (Url.Builder.absolute
                             [ code ]

@@ -289,7 +289,7 @@ class SessionState:
 
     async def start_entry_phase(self):
         for player in self.players.values():
-            if player.feature is not None:
+            if player.feature:
                 await player.feature.start_entry_phase()
 
     async def share_out_dares_and_start_game(self):
@@ -305,12 +305,12 @@ class SessionState:
             player.game_state = PlayerGameState(
                 allocated_dares, remaining_skips=self.skips
             )
-            if player.feature is None:
+            if player.feature:
+                await player.feature.start_game_phase(self.rounds, self.skips)
+            else:
                 logger.debug(
                     "Player %d not connected to session %s", player.id, self.code
                 )
-                continue
-            await player.feature.start_game_phase(self.rounds, self.skips)
 
     async def send_next_round_of_dares(self):
         self.game_state.current_round += 1
@@ -324,18 +324,18 @@ class SessionState:
             assert player.game_state is not None
             player.game_state.waiting = False
             player.game_state.outcome = None
-            if player.feature is None:
-                logger.debug(
-                    "Player %d not connected to session %s", player.id, self.code
-                )
-                continue
             player.game_state.current_dare = player.game_state.dares[
                 self.game_state.current_round - 1
             ]
-            await player.feature.send_next_dare(
-                self.game_state.current_round,
-                player.game_state.current_dare,
-            )
+            if player.feature:
+                await player.feature.send_next_dare(
+                    self.game_state.current_round,
+                    player.game_state.current_dare,
+                )
+            else:
+                logger.debug(
+                    "Player %d not connected to session %s", player.id, self.code
+                )
 
     async def send_round_outcomes(self):
         logger.info(
@@ -347,11 +347,6 @@ class SessionState:
         for player in self.players.values():
             assert player.game_state is not None
             player.game_state.waiting = False
-            if player.feature is None:
-                logger.debug(
-                    "Player %d not connected to session %s", player.id, self.code
-                )
-                continue
             # Send the appropriate outcome message.
             opponent = [p for p in self.players.values() if p is not player][0]
             opponent_dare = opponent.game_state.dares[self.game_state.current_round - 1]
@@ -380,12 +375,19 @@ class SessionState:
                     "your dare"
                 )
             player.game_state.outcome = outcome
-            await player.feature.send_outcome(outcome)
+            if player.feature:
+                await player.feature.send_outcome(outcome)
+            else:
+                logger.debug(
+                    "Player %d not connected to session %s", player.id, self.code
+                )
         for player in self.players.values():
             player.game_state.dare_choice = None
-        if self.game_state.current_round == self.rounds:
-            # Game is finished.
-            sessions.pop(self.code)
+        # TODO: Free up the session code but do this later so user can still
+        #       retrieve outcome via page refresh...
+        # if self.game_state.current_round == self.rounds:
+        #     # Game is finished.
+        #     sessions.pop(self.code)
 
 
 sessions: Dict[str, SessionState] = dict()
